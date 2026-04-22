@@ -47,7 +47,9 @@ struct ContentView: View {
         } message: {
             Text(state.errorMessage ?? "")
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minWidth: minWindowWidth, minHeight: minWindowHeight)
+        .background(Color(white: 0.2))
         .focusable()
         .onKeyPress(.rightArrow) { state.nextPage(); scrollTo(state.currentPage); return .handled }
         .onKeyPress(.leftArrow) { state.prevPage(); scrollTo(state.currentPage); return .handled }
@@ -87,7 +89,6 @@ struct ContentView: View {
                 }
             }
         }
-        .background(Color(white: 0.2))
     }
 
     // MARK: - Placeholder
@@ -101,7 +102,6 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(white: 0.2))
     }
 
     // MARK: - Toolbar

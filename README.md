@@ -11,15 +11,13 @@ Native macOS DjVu file reader. Swift + SwiftUI, decoding via DjVuLibre.
 
 ```
 swift build
-swift run MacDjVu [file.djvu]
-```
-
-To create a standalone .app bundle:
-
-```
 bash bundle.sh
-open MacDjVu.app
+open MacDjVu.app [file.djvu]
 ```
+
+`swift run` is not supported — SPM executables lack a proper .app bundle
+(no `Info.plist`, no bundle identifier), which causes SwiftUI window
+management issues. Use `bundle.sh` to produce a working `MacDjVu.app`.
 
 ## Test
 
