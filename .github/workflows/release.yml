@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install DjVuLibre
+        run: brew install djvulibre
+
+      - name: Test
+        run: swift test
+
+      - name: Bundle .app
+        run: bash bundle.sh
+
+      - name: Create zip
+        run: ditto -c -k --keepParent MacDjVu.app MacDjVu.app.zip
+
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: MacDjVu.app.zip
+          generate_release_notes: true

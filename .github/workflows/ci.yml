@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install DjVuLibre
+        run: brew install djvulibre
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
