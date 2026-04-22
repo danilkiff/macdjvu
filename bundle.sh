@@ -5,13 +5,22 @@ set -euo pipefail
 APP="MacDjVu.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
+RESOURCES="$CONTENTS/Resources"
 
 swift build -c release 2>&1
 
 rm -rf "$APP"
-mkdir -p "$MACOS"
+mkdir -p "$MACOS" "$RESOURCES"
 
 cp .build/release/MacDjVu "$MACOS/"
 cp Info.plist "$CONTENTS/Info.plist"
+
+# Compile asset catalog (app icon with light/dark variants)
+xcrun actool Assets.xcassets \
+    --compile "$RESOURCES" \
+    --platform macosx \
+    --minimum-deployment-target 15.0 \
+    --app-icon AppIcon \
+    --output-partial-info-plist /dev/null 2>&1
 
 echo "Built: $APP"
