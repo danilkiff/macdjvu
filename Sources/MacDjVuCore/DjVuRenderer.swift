@@ -1,6 +1,8 @@
 import Foundation
 
-// Page width in pixels at 100% zoom
+/// Page width in pixels at 100% zoom.
+/// Chosen to fit comfortably in a typical window (~1000px)
+/// while keeping scanned text readable.
 public let baseWidth: CGFloat = 800
 
 public struct DjVuRenderer: Sendable {

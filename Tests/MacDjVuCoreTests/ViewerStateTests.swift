@@ -14,65 +14,108 @@ struct ViewerStateTests {
         #expect(state.currentPage == 1)
         #expect(state.scalePercent == 100)
         #expect(state.renderedPages.isEmpty)
+        #expect(state.errorMessage == nil)
     }
 
     // MARK: - Navigation
 
     @Test @MainActor func nextPage() {
-        let state = ViewerState()
-        state.pageCount = 5
-        state.fileURL = URL(fileURLWithPath: "/fake.djvu")
+        let state = makeState(pages: 5)
         state.nextPage()
         #expect(state.currentPage == 2)
     }
 
+    @Test @MainActor func nextPageMultiple() {
+        let state = makeState(pages: 5)
+        state.nextPage()
+        state.nextPage()
+        state.nextPage()
+        #expect(state.currentPage == 4)
+    }
+
     @Test @MainActor func prevPage() {
-        let state = ViewerState()
-        state.pageCount = 5
-        state.fileURL = URL(fileURLWithPath: "/fake.djvu")
+        let state = makeState(pages: 5)
         state.currentPage = 3
         state.prevPage()
         #expect(state.currentPage == 2)
     }
 
     @Test @MainActor func cannotGoPastLastPage() {
-        let state = ViewerState()
-        state.pageCount = 3
-        state.fileURL = URL(fileURLWithPath: "/fake.djvu")
+        let state = makeState(pages: 3)
         state.currentPage = 3
         state.nextPage()
         #expect(state.currentPage == 3)
     }
 
     @Test @MainActor func cannotGoBeforeFirstPage() {
-        let state = ViewerState()
-        state.pageCount = 5
-        state.fileURL = URL(fileURLWithPath: "/fake.djvu")
+        let state = makeState(pages: 5)
         state.prevPage()
         #expect(state.currentPage == 1)
     }
 
     @Test @MainActor func goToPage() {
-        let state = ViewerState()
-        state.pageCount = 10
-        state.fileURL = URL(fileURLWithPath: "/fake.djvu")
+        let state = makeState(pages: 10)
         state.goToPage(7)
         #expect(state.currentPage == 7)
     }
 
-    @Test @MainActor func goToInvalidPageIgnored() {
-        let state = ViewerState()
-        state.pageCount = 10
-        state.fileURL = URL(fileURLWithPath: "/fake.djvu")
+    @Test @MainActor func goToFirstPage() {
+        let state = makeState(pages: 10)
+        state.goToPage(1)
+        #expect(state.currentPage == 1)
+    }
+
+    @Test @MainActor func goToLastPage() {
+        let state = makeState(pages: 10)
+        state.goToPage(10)
+        #expect(state.currentPage == 10)
+    }
+
+    @Test @MainActor func goToInvalidPageZero() {
+        let state = makeState(pages: 10)
         state.goToPage(0)
         #expect(state.currentPage == 1)
+    }
+
+    @Test @MainActor func goToInvalidPageBeyondMax() {
+        let state = makeState(pages: 10)
         state.goToPage(11)
+        #expect(state.currentPage == 1)
+    }
+
+    @Test @MainActor func goToNegativePage() {
+        let state = makeState(pages: 10)
+        state.goToPage(-1)
         #expect(state.currentPage == 1)
     }
 
     @Test @MainActor func goToPageWithoutFile() {
         let state = ViewerState()
         state.goToPage(5)
+        #expect(state.currentPage == 1)
+    }
+
+    @Test @MainActor func nextPageWithoutFile() {
+        let state = ViewerState()
+        state.nextPage()
+        #expect(state.currentPage == 1)
+    }
+
+    @Test @MainActor func prevPageWithoutFile() {
+        let state = ViewerState()
+        state.prevPage()
+        #expect(state.currentPage == 1)
+    }
+
+    @Test @MainActor func nextPageSinglePageDocument() {
+        let state = makeState(pages: 1)
+        state.nextPage()
+        #expect(state.currentPage == 1)
+    }
+
+    @Test @MainActor func prevPageSinglePageDocument() {
+        let state = makeState(pages: 1)
+        state.prevPage()
         #expect(state.currentPage == 1)
     }
 
@@ -90,6 +133,20 @@ struct ViewerStateTests {
         #expect(state.scalePercent == 75)
     }
 
+    @Test @MainActor func zoomInMultiple() {
+        let state = ViewerState()
+        state.zoomIn()
+        state.zoomIn()
+        #expect(state.scalePercent == 150)
+    }
+
+    @Test @MainActor func zoomOutMultiple() {
+        let state = ViewerState()
+        state.zoomOut()
+        state.zoomOut()
+        #expect(state.scalePercent == 50)
+    }
+
     @Test @MainActor func zoomClampedMin() {
         let state = ViewerState()
         state.setZoom(10)
@@ -99,6 +156,30 @@ struct ViewerStateTests {
     @Test @MainActor func zoomClampedMax() {
         let state = ViewerState()
         state.setZoom(999)
+        #expect(state.scalePercent == 600)
+    }
+
+    @Test @MainActor func zoomClampedNegative() {
+        let state = ViewerState()
+        state.setZoom(-100)
+        #expect(state.scalePercent == 50)
+    }
+
+    @Test @MainActor func zoomClampedZero() {
+        let state = ViewerState()
+        state.setZoom(0)
+        #expect(state.scalePercent == 50)
+    }
+
+    @Test @MainActor func zoomExactBoundaryMin() {
+        let state = ViewerState()
+        state.setZoom(50)
+        #expect(state.scalePercent == 50)
+    }
+
+    @Test @MainActor func zoomExactBoundaryMax() {
+        let state = ViewerState()
+        state.setZoom(600)
         #expect(state.scalePercent == 600)
     }
 
@@ -119,23 +200,67 @@ struct ViewerStateTests {
     @Test @MainActor func zoomClearsCache() {
         let state = ViewerState()
         state.renderedPages[1] = .init()
+        state.renderedPages[2] = .init()
         state.setZoom(200)
         #expect(state.renderedPages.isEmpty)
     }
 
+    @Test @MainActor func zoomSameValueDoesNotClearCache() {
+        let state = ViewerState()
+        state.renderedPages[1] = .init()
+        state.setZoom(100) // same as default
+        #expect(state.renderedPages.count == 1)
+    }
+
     // MARK: - Display geometry
 
-    @Test @MainActor func displayWidth() {
+    @Test @MainActor func displayWidth_default() {
+        let state = ViewerState()
+        #expect(state.displayWidth == 800)
+    }
+
+    @Test @MainActor func displayWidth_150() {
         let state = ViewerState()
         state.scalePercent = 150
         #expect(state.displayWidth == 1200)
     }
 
-    @Test @MainActor func displayHeight() {
+    @Test @MainActor func displayWidth_50() {
+        let state = ViewerState()
+        state.scalePercent = 50
+        #expect(state.displayWidth == 400)
+    }
+
+    @Test @MainActor func displayHeight_portrait() {
         let state = ViewerState()
         state.nativeSize = (width: 2000, height: 3000)
         state.scalePercent = 100
-        // 800 * 3000/2000 = 1200
         #expect(state.displayHeight() == 1200)
+    }
+
+    @Test @MainActor func displayHeight_landscape() {
+        let state = ViewerState()
+        state.nativeSize = (width: 3000, height: 2000)
+        state.scalePercent = 100
+        // 800 * 2000/3000 ≈ 533.33
+        #expect(state.displayHeight() > 533)
+        #expect(state.displayHeight() < 534)
+    }
+
+    @Test @MainActor func displayHeight_square() {
+        let state = ViewerState()
+        state.nativeSize = (width: 1000, height: 1000)
+        state.scalePercent = 100
+        #expect(state.displayHeight() == 800)
+    }
+
+    // MARK: - Helpers
+
+    @MainActor
+    private func makeState(pages: Int) -> ViewerState {
+        let state = ViewerState()
+        state.pageCount = pages
+        state.fileURL = URL(fileURLWithPath: "/fake.djvu")
+        return state
     }
 }

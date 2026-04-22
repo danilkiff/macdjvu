@@ -3,7 +3,13 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private let djvuType = UTType(filenameExtension: "djvu") ?? .data
+
+/// Vertical spacing between pages in the scroll view (points).
 private let pageGap: CGFloat = 12
+
+/// Minimum window dimensions (points).
+private let minWindowWidth: CGFloat = 600
+private let minWindowHeight: CGFloat = 400
 
 struct ContentView: View {
     @Environment(ViewerState.self) private var state
@@ -18,7 +24,10 @@ struct ContentView: View {
                 placeholderView
             }
         }
+        .navigationTitle(state.fileURL?.deletingPathExtension().lastPathComponent ?? "MacDjVu")
+        .navigationSubtitle(state.fileURL != nil ? "Page \(state.currentPage) of \(state.pageCount)" : "")
         .toolbar { toolbarContent }
+        .toolbarTitleDisplayMode(.inline)
         .fileImporter(
             isPresented: $showFileImporter,
             allowedContentTypes: [djvuType]
@@ -38,8 +47,7 @@ struct ContentView: View {
         } message: {
             Text(state.errorMessage ?? "")
         }
-        .frame(minWidth: 600, minHeight: 400)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .frame(minWidth: minWindowWidth, minHeight: minWindowHeight)
         .focusable()
         .onKeyPress(.rightArrow) { state.nextPage(); scrollTo(state.currentPage); return .handled }
         .onKeyPress(.leftArrow) { state.prevPage(); scrollTo(state.currentPage); return .handled }
@@ -79,49 +87,61 @@ struct ContentView: View {
                 }
             }
         }
-        .background(Color(white: 0.25))
+        .background(Color(white: 0.2))
     }
 
     // MARK: - Placeholder
 
     private var placeholderView: some View {
-        Text("Drop a .djvu file here or press \u{2318}O")
-            .font(.title2)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 8) {
+            Image(systemName: "doc.richtext")
+                .font(.system(size: 48))
+                .foregroundStyle(.tertiary)
+            Text("Drop a .djvu file here or press \u{2318}O")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(white: 0.2))
     }
 
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .automatic) {
-            Button("Open...") { showFileImporter = true }
-                .keyboardShortcut("o")
-
-            Spacer()
-
-            Button("< Prev") { state.prevPage(); scrollTo(state.currentPage) }
-                .disabled(state.fileURL == nil || state.currentPage <= 1)
-
-            Text("p. \(state.currentPage) / \(state.pageCount)")
-                .monospacedDigit()
-
-            Button("Next >") { state.nextPage(); scrollTo(state.currentPage) }
-                .disabled(state.fileURL == nil || state.currentPage >= state.pageCount)
-
-            Spacer()
-
-            Text("Zoom:")
-            Picker("", selection: Binding(
-                get: { state.scalePercent },
-                set: { state.setZoom($0) }
-            )) {
-                ForEach([50, 75, 100, 125, 150, 200, 300], id: \.self) { pct in
-                    Text("\(pct)%").tag(pct)
-                }
+        ToolbarItemGroup(placement: .principal) {
+            Button {
+                state.zoomOut()
+            } label: {
+                Image(systemName: "minus.magnifyingglass")
             }
-            .frame(width: 80)
+            .disabled(state.fileURL == nil || state.scalePercent <= zoomMin)
+            .help("Zoom out")
+
+            Button {
+                state.setZoom(100)
+            } label: {
+                Image(systemName: "magnifyingglass")
+            }
+            .disabled(state.fileURL == nil)
+            .help("Actual size")
+
+            Button {
+                state.zoomIn()
+            } label: {
+                Image(systemName: "plus.magnifyingglass")
+            }
+            .disabled(state.fileURL == nil || state.scalePercent >= zoomMax)
+            .help("Zoom in")
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                showFileImporter = true
+            } label: {
+                Image(systemName: "folder")
+            }
+            .keyboardShortcut("o")
+            .help("Open file")
         }
     }
 

@@ -2,6 +2,18 @@ import AppKit
 import Foundation
 import Observation
 
+/// Zoom step for zoomIn()/zoomOut(), in percentage points.
+public let zoomStep = 25
+/// Minimum allowed zoom percentage.
+public let zoomMin = 50
+/// Maximum allowed zoom percentage.
+public let zoomMax = 600
+
+/// Fallback page dimensions (pixels) when djvused query fails.
+/// Approximates a typical A4 scan at 300 DPI (≈2480x3508),
+/// rounded for simplicity.
+private let fallbackPageSize = (width: 2000, height: 3000)
+
 @Observable
 @MainActor
 public final class ViewerState {
@@ -9,7 +21,7 @@ public final class ViewerState {
     public var pageCount: Int = 0
     public var currentPage: Int = 1
     public var scalePercent: Int = 100
-    public var nativeSize: (width: Int, height: Int) = (2000, 3000)
+    public var nativeSize: (width: Int, height: Int) = fallbackPageSize
     public var errorMessage: String?
 
     // Image cache keyed by 1-based page number
@@ -53,15 +65,15 @@ public final class ViewerState {
     // MARK: - Zoom
 
     public func zoomIn() {
-        setZoom(scalePercent + 25)
+        setZoom(scalePercent + zoomStep)
     }
 
     public func zoomOut() {
-        setZoom(scalePercent - 25)
+        setZoom(scalePercent - zoomStep)
     }
 
     public func setZoom(_ percent: Int) {
-        let clamped = max(50, min(600, percent))
+        let clamped = max(zoomMin, min(zoomMax, percent))
         guard clamped != scalePercent else { return }
         scalePercent = clamped
         renderedPages.removeAll()

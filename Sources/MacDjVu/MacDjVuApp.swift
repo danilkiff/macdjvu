@@ -7,10 +7,13 @@ struct MacDjVuApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(state)
-                .onAppear { openFromArguments() }
+            NavigationStack {
+                ContentView()
+            }
+            .environment(state)
+            .onAppear { openFromArguments() }
         }
+        .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
