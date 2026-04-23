@@ -25,6 +25,8 @@ public final class ViewerState {
     public static let zoomMin = 50
     /// Maximum allowed zoom percentage.
     public static let zoomMax = 600
+    /// Maximum rendered pages kept in cache. Pages farthest from currentPage are evicted first.
+    static let cacheCapacity = 10
 
     public var fileURL: URL?
     @ObservationIgnored private var scopedResource: ScopedResource?
@@ -141,6 +143,7 @@ public final class ViewerState {
                 renderedPages[page] = NSImage(data: data)
                 renderedPageScales[page] = scale
                 pageSizes[page] = nativeSize
+                evictDistantPages()
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -148,6 +151,19 @@ public final class ViewerState {
         // Release lock only if we still own it (a newer scale may have overwritten it).
         if renderingPages[page] == scale {
             renderingPages.removeValue(forKey: page)
+        }
+    }
+
+    // MARK: - Cache management
+
+    /// Evict rendered pages farthest from currentPage when cache exceeds capacity.
+    func evictDistantPages() {
+        guard renderedPages.count > Self.cacheCapacity else { return }
+        let current = currentPage
+        let sorted = renderedPages.keys.sorted { abs($0 - current) < abs($1 - current) }
+        for page in sorted.dropFirst(Self.cacheCapacity) {
+            renderedPages.removeValue(forKey: page)
+            renderedPageScales.removeValue(forKey: page)
         }
     }
 }

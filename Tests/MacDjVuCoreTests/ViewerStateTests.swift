@@ -291,6 +291,58 @@ struct ViewerStateTests {
         #expect(state.displayHeight() == 800)
     }
 
+    // MARK: - Cache eviction
+
+    @Test @MainActor func cacheEvictsDistantPages() {
+        let state = makeState(pages: 20)
+        state.currentPage = 10
+        // Fill cache beyond capacity.
+        for i in 1...15 {
+            state.renderedPages[i] = NSImage()
+            state.renderedPageScales[i] = 100
+        }
+        state.evictDistantPages()
+        #expect(state.renderedPages.count == ViewerState.cacheCapacity)
+        // Pages closest to currentPage=10 survive; distant ones evicted.
+        #expect(state.renderedPages[10] != nil)
+        #expect(state.renderedPages[9] != nil)
+        #expect(state.renderedPages[11] != nil)
+        // Page 1 is farthest from 10 and should be evicted.
+        #expect(state.renderedPages[1] == nil)
+        #expect(state.renderedPageScales[1] == nil)
+    }
+
+    @Test @MainActor func cacheUnderCapacityNotEvicted() {
+        let state = makeState(pages: 20)
+        state.currentPage = 5
+        for i in 1...5 {
+            state.renderedPages[i] = NSImage()
+            state.renderedPageScales[i] = 100
+        }
+        state.evictDistantPages()
+        // Under capacity — nothing should be evicted.
+        #expect(state.renderedPages.count == 5)
+    }
+
+    @Test @MainActor func cacheEvictionKeepsClosestPages() {
+        let state = makeState(pages: 50)
+        state.currentPage = 25
+        // Insert pages at edges and near center.
+        for i in [1, 2, 3, 24, 25, 26, 27, 28, 29, 30, 48, 49, 50] {
+            state.renderedPages[i] = NSImage()
+            state.renderedPageScales[i] = 100
+        }
+        state.evictDistantPages()
+        #expect(state.renderedPages.count == ViewerState.cacheCapacity)
+        // Center pages survive.
+        for i in 24...30 {
+            #expect(state.renderedPages[i] != nil)
+        }
+        // Edge pages evicted.
+        #expect(state.renderedPages[1] == nil)
+        #expect(state.renderedPages[50] == nil)
+    }
+
     // MARK: - Helpers
 
     @MainActor
