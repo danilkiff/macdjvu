@@ -249,6 +249,12 @@ struct ViewerStateTests {
         #expect(state.errorMessage != nil)
     }
 
+    @Test @MainActor func decodeRenderedImageRejectsInvalidData() {
+        #expect(throws: ViewerStateError.self) {
+            try ViewerState.decodeRenderedImage(Data("not an image".utf8), page: 3)
+        }
+    }
+
     // MARK: - Display geometry
 
     @Test @MainActor func displayWidth_default() {

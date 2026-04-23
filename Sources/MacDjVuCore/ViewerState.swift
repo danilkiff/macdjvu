@@ -140,7 +140,8 @@ public final class ViewerState {
             }.value
             // Discard if scale or file changed while rendering.
             if scalePercent == scale && fileURL == url {
-                renderedPages[page] = NSImage(data: data)
+                let image = try Self.decodeRenderedImage(data, page: page)
+                renderedPages[page] = image
                 renderedPageScales[page] = scale
                 pageSizes[page] = nativeSize
                 evictDistantPages()
@@ -164,6 +165,24 @@ public final class ViewerState {
         for page in sorted.dropFirst(Self.cacheCapacity) {
             renderedPages.removeValue(forKey: page)
             renderedPageScales.removeValue(forKey: page)
+        }
+    }
+
+    package static func decodeRenderedImage(_ data: Data, page: Int) throws -> NSImage {
+        guard let image = NSImage(data: data) else {
+            throw ViewerStateError.invalidRenderedImage(page: page)
+        }
+        return image
+    }
+}
+
+public enum ViewerStateError: Error, LocalizedError, Equatable {
+    case invalidRenderedImage(page: Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidRenderedImage(let page):
+            return "Failed to decode rendered image for page \(page)"
         }
     }
 }
