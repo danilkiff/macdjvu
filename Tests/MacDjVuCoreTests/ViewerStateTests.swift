@@ -406,6 +406,41 @@ struct ViewerStateTests {
         #expect(state.renderedPages[50] == nil)
     }
 
+    @Test @MainActor func cacheEvictsByCostLimit() {
+        let state = makeState(pages: 20)
+        state.currentPage = 2
+        for i in [1, 2, 20] {
+            state.renderedPages[i] = NSImage()
+            state.renderedPageScales[i] = 100
+            state.renderedPageCosts[i] = ViewerState.cacheCostLimit / 2
+        }
+        state.evictDistantPages()
+        #expect(state.renderedCacheCost <= ViewerState.cacheCostLimit)
+        #expect(state.renderedPages[1] != nil)
+        #expect(state.renderedPages[2] != nil)
+        #expect(state.renderedPages[20] == nil)
+        #expect(state.renderedPageCosts[20] == nil)
+    }
+
+    @Test @MainActor func cacheKeepsSingleOversizedCurrentPage() {
+        let state = makeState(pages: 1)
+        state.renderedPages[1] = NSImage()
+        state.renderedPageScales[1] = 100
+        state.renderedPageCosts[1] = ViewerState.cacheCostLimit * 2
+        state.evictDistantPages()
+        #expect(state.renderedPages[1] != nil)
+        #expect(state.renderedCacheCost == ViewerState.cacheCostLimit * 2)
+    }
+
+    @Test @MainActor func estimatedImageCostFallsBackToScaledDimensions() {
+        let cost = ViewerState.estimatedImageCost(
+            NSImage(),
+            nativeSize: PageSize(width: 2000, height: 3000),
+            scalePercent: 100
+        )
+        #expect(cost == 800 * 1200 * 4)
+    }
+
     // MARK: - Helpers
 
     @MainActor

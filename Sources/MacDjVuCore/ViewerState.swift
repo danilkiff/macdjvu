@@ -27,6 +27,8 @@ public final class ViewerState {
     public static let zoomMax = 600
     /// Maximum rendered pages kept in cache. Pages farthest from currentPage are evicted first.
     package static let cacheCapacity = 10
+    /// Approximate decoded image memory limit for the rendered page cache.
+    package static let cacheCostLimit = 256 * 1024 * 1024
 
     public var fileURL: URL?
     @ObservationIgnored private var scopedResource: ScopedResource?
@@ -34,6 +36,8 @@ public final class ViewerState {
     @ObservationIgnored package var renderingPages: [Int: Int] = [:]
     // Scale at which each page was last rendered; used to detect stale cache entries.
     @ObservationIgnored package var renderedPageScales: [Int: Int] = [:]
+    // Approximate decoded image cost in bytes, keyed by 1-based page number.
+    @ObservationIgnored package var renderedPageCosts: [Int: Int] = [:]
     public var pageCount: Int = 0
     public var currentPage: Int = 1
     public var scalePercent: Int = 100
@@ -71,6 +75,7 @@ public final class ViewerState {
             pageSizes = [1: size]
             renderedPages.removeAll()
             renderedPageScales.removeAll()
+            renderedPageCosts.removeAll()
             renderingPages.removeAll()
             errorMessage = nil
         } catch {
@@ -149,6 +154,7 @@ public final class ViewerState {
                 let image = try Self.decodeRenderedImage(data, page: page)
                 renderedPages[page] = image
                 renderedPageScales[page] = scale
+                renderedPageCosts[page] = Self.estimatedImageCost(image, nativeSize: nativeSize, scalePercent: scale)
                 pageSizes[page] = nativeSize
                 evictDistantPages()
             }
@@ -165,14 +171,24 @@ public final class ViewerState {
 
     // MARK: - Cache management
 
+    package var renderedCacheCost: Int {
+        renderedPageCosts.values.reduce(0, +)
+    }
+
     /// Evict rendered pages farthest from currentPage when cache exceeds capacity.
     package func evictDistantPages() {
-        guard renderedPages.count > Self.cacheCapacity else { return }
+        guard shouldEvictRenderedPages else { return }
         let current = currentPage
-        let sorted = renderedPages.keys.sorted { abs($0 - current) < abs($1 - current) }
-        for page in sorted.dropFirst(Self.cacheCapacity) {
-            renderedPages.removeValue(forKey: page)
-            renderedPageScales.removeValue(forKey: page)
+        let evictionOrder = renderedPages.keys.sorted {
+            let lhsDistance = abs($0 - current)
+            let rhsDistance = abs($1 - current)
+            if lhsDistance == rhsDistance { return $0 > $1 }
+            return lhsDistance > rhsDistance
+        }
+
+        for page in evictionOrder {
+            guard shouldEvictRenderedPages, renderedPages.count > 1 else { break }
+            removeRenderedPage(page)
         }
     }
 
@@ -181,6 +197,28 @@ public final class ViewerState {
             throw ViewerStateError.invalidRenderedImage(page: page)
         }
         return image
+    }
+
+    package static func estimatedImageCost(_ image: NSImage, nativeSize: PageSize, scalePercent: Int) -> Int {
+        if let representation = image.representations.max(by: { lhs, rhs in
+            lhs.pixelsWide * lhs.pixelsHigh < rhs.pixelsWide * rhs.pixelsHigh
+        }), representation.pixelsWide > 0, representation.pixelsHigh > 0 {
+            return representation.pixelsWide * representation.pixelsHigh * 4
+        }
+
+        let targetW = max(1, Int(DjVuRenderer.baseWidth) * scalePercent / 100)
+        let targetH = max(1, targetW * nativeSize.height / nativeSize.width)
+        return targetW * targetH * 4
+    }
+
+    private var shouldEvictRenderedPages: Bool {
+        renderedPages.count > Self.cacheCapacity || renderedCacheCost > Self.cacheCostLimit
+    }
+
+    private func removeRenderedPage(_ page: Int) {
+        renderedPages.removeValue(forKey: page)
+        renderedPageScales.removeValue(forKey: page)
+        renderedPageCosts.removeValue(forKey: page)
     }
 }
 
