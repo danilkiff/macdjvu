@@ -12,6 +12,11 @@ struct MacDjVuApp: App {
             }
             .environment(state)
             .onAppear { openFromArguments() }
+            .onOpenURL { url in
+                if ["djvu", "djv"].contains(url.pathExtension.lowercased()) {
+                    Task { await state.openFile(url) }
+                }
+            }
         }
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {

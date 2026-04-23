@@ -24,5 +24,21 @@
     <true/>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>DjVu Document</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>djvu</string>
+                <string>djv</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Default</string>
+        </dict>
+    </array>
 </dict>
 </plist>

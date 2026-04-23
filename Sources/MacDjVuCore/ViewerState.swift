@@ -26,14 +26,14 @@ public final class ViewerState {
     /// Maximum allowed zoom percentage.
     public static let zoomMax = 600
     /// Maximum rendered pages kept in cache. Pages farthest from currentPage are evicted first.
-    static let cacheCapacity = 10
+    package static let cacheCapacity = 10
 
     public var fileURL: URL?
     @ObservationIgnored private var scopedResource: ScopedResource?
     // In-flight renders: page → scale being rendered. Prevents duplicate renders per (page, scale).
     @ObservationIgnored private var renderingPages: [Int: Int] = [:]
     // Scale at which each page was last rendered; used to detect stale cache entries.
-    @ObservationIgnored var renderedPageScales: [Int: Int] = [:]
+    @ObservationIgnored package var renderedPageScales: [Int: Int] = [:]
     public var pageCount: Int = 0
     public var currentPage: Int = 1
     public var scalePercent: Int = 100
@@ -157,7 +157,7 @@ public final class ViewerState {
     // MARK: - Cache management
 
     /// Evict rendered pages farthest from currentPage when cache exceeds capacity.
-    func evictDistantPages() {
+    package func evictDistantPages() {
         guard renderedPages.count > Self.cacheCapacity else { return }
         let current = currentPage
         let sorted = renderedPages.keys.sorted { abs($0 - current) < abs($1 - current) }
