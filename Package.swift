@@ -14,7 +14,8 @@ let package = Package(
         ),
         .testTarget(
             name: "MacDjVuCoreTests",
-            dependencies: ["MacDjVuCore"]
+            dependencies: ["MacDjVuCore"],
+            resources: [.process("Fixtures")]
         ),
     ]
 )
