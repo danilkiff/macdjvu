@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.macdjvu.app</string>
+    <string>com.github.danilkiff.macdjvu</string>
     <key>CFBundleName</key>
     <string>MacDjVu</string>
     <key>CFBundleDisplayName</key>

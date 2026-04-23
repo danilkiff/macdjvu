@@ -5,3 +5,5 @@ MacDjVu.app/
 *.xcodeproj/
 xcuserdata/
 DerivedData/
+.mypy_cache/
+.vscode/

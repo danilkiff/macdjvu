@@ -1,6 +1,12 @@
 import MacDjVuCore
 import SwiftUI
 
+extension URL {
+    var isDjVu: Bool {
+        ["djvu", "djv"].contains(pathExtension.lowercased())
+    }
+}
+
 @main
 struct MacDjVuApp: App {
     @State private var state = ViewerState()
@@ -13,7 +19,7 @@ struct MacDjVuApp: App {
             .environment(state)
             .onAppear { openFromArguments() }
             .onOpenURL { url in
-                if ["djvu", "djv"].contains(url.pathExtension.lowercased()) {
+                if url.isDjVu {
                     Task { await state.openFile(url) }
                 }
             }
@@ -28,7 +34,7 @@ struct MacDjVuApp: App {
         guard CommandLine.arguments.count > 1 else { return }
         let path = CommandLine.arguments[1]
         let url = URL(fileURLWithPath: path)
-        if ["djvu", "djv"].contains(url.pathExtension.lowercased()) {
+        if url.isDjVu {
             Task { await state.openFile(url) }
         }
     }

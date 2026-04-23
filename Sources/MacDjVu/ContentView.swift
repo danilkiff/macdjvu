@@ -39,7 +39,7 @@ struct ContentView: View {
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
-            guard let url = urls.first(where: { ["djvu", "djv"].contains($0.pathExtension.lowercased()) }) else { return false }
+            guard let url = urls.first(where: \.isDjVu) else { return false }
             Task { await state.openFile(url) }
             return true
         }
