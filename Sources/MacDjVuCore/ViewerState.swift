@@ -31,7 +31,7 @@ public final class ViewerState {
     public var fileURL: URL?
     @ObservationIgnored private var scopedResource: ScopedResource?
     // In-flight renders: page → scale being rendered. Prevents duplicate renders per (page, scale).
-    @ObservationIgnored private var renderingPages: [Int: Int] = [:]
+    @ObservationIgnored package var renderingPages: [Int: Int] = [:]
     // Scale at which each page was last rendered; used to detect stale cache entries.
     @ObservationIgnored package var renderedPageScales: [Int: Int] = [:]
     public var pageCount: Int = 0

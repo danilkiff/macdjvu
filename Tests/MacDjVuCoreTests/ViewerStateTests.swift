@@ -291,6 +291,63 @@ struct ViewerStateTests {
         #expect(state.displayHeight() == 800)
     }
 
+    // MARK: - openFile
+
+    @Test @MainActor func openFileNonexistentSetsError() async {
+        let state = ViewerState()
+        await state.openFile(URL(fileURLWithPath: "/nonexistent.djvu"))
+        #expect(state.errorMessage != nil)
+        // State should remain untouched on failure.
+        #expect(state.fileURL == nil)
+        #expect(state.pageCount == 0)
+    }
+
+    @Test @MainActor func openFileErrorDoesNotClobberPreviousState() async {
+        let state = makeState(pages: 10)
+        state.currentPage = 5
+        state.renderedPages[1] = NSImage()
+        await state.openFile(URL(fileURLWithPath: "/nonexistent.djvu"))
+        // Previous document state preserved on error.
+        #expect(state.fileURL?.lastPathComponent == "fake.djvu")
+        #expect(state.pageCount == 10)
+        #expect(state.currentPage == 5)
+        #expect(state.renderedPages[1] != nil)
+    }
+
+    // MARK: - Display geometry fallback
+
+    @Test @MainActor func displayHeightFallbackWhenNoPageSizes() {
+        let state = ViewerState()
+        // No pageSizes at all → uses fallbackPageSize (A4 @ 300dpi: 2480×3508).
+        let h = state.displayHeight()
+        // 800 * 3508 / 2480 = 1131.6129...
+        #expect(h > 1131)
+        #expect(h < 1132)
+    }
+
+    @Test @MainActor func displayHeightFallsBackToPage1() {
+        let state = ViewerState()
+        state.pageSizes = [1: PageSize(width: 1000, height: 2000)]
+        // Request page 5 which has no entry → falls back to page 1.
+        let h = state.displayHeight(page: 5)
+        // 800 * 2000 / 1000 = 1600
+        #expect(h == 1600)
+    }
+
+    // MARK: - Rendering dedup
+
+    @Test @MainActor func renderPageIfNeededSkipsOnDuplicateInFlight() async {
+        let state = makeState(pages: 5)
+        // Simulate an in-flight render at current scale.
+        state.renderingPages[1] = 100
+        let sentinel = NSImage()
+        state.renderedPages[1] = sentinel
+        await state.renderPageIfNeeded(1)
+        // Dedup guard fires — no render attempted, cache untouched.
+        #expect(state.renderedPages[1] === sentinel)
+        #expect(state.errorMessage == nil)
+    }
+
     // MARK: - Cache eviction
 
     @Test @MainActor func cacheEvictsDistantPages() {
