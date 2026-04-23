@@ -13,28 +13,33 @@ public enum DjVuRenderer {
         "/usr/bin",
     ]
 
-    static func toolPath(_ name: String) -> String {
+    static func toolPath(_ name: String) -> String? {
         for dir in searchPaths {
             let path = "\(dir)/\(name)"
             if FileManager.default.isExecutableFile(atPath: path) {
                 return path
             }
         }
-        return name // fallback to PATH lookup
+        return nil
     }
 
     // MARK: - Shell helpers
 
     private static func run(_ executable: String, _ arguments: [String]) throws -> String {
+        guard let path = toolPath(executable) else {
+            throw DjVuError.toolNotFound(executable)
+        }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: toolPath(executable))
+        process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
 
         // GUI apps launched from Finder have no LANG/LC_CTYPE.
         // DjVuLibre uses mbrtowc() to convert argv paths to UTF-8;
         // without a UTF-8 locale it misinterprets non-ASCII bytes.
         var env = ProcessInfo.processInfo.environment
-        env["LC_CTYPE"] = "en_US.UTF-8"
+        if env["LC_CTYPE"] == nil {
+            env["LC_CTYPE"] = "C.UTF-8"
+        }
         process.environment = env
 
         let outPipe = Pipe()
@@ -124,6 +129,7 @@ public enum DjVuRenderer {
 public enum DjVuError: Error, LocalizedError {
     case processFailure(String, Int, String)
     case unexpectedOutput(String)
+    case toolNotFound(String)
 
     public var errorDescription: String? {
         switch self {
@@ -134,6 +140,8 @@ public enum DjVuError: Error, LocalizedError {
             return "\(tool) failed with exit code \(code): \(stderr)"
         case .unexpectedOutput(let output):
             return "Unexpected output: \(output)"
+        case .toolNotFound(let name):
+            return "\(name) not found. Install DjVuLibre: brew install djvulibre"
         }
     }
 }

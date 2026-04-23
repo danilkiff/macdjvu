@@ -163,9 +163,8 @@ struct DjVuRendererTests {
         #expect(path == "/usr/bin/env")
     }
 
-    @Test func toolPath_fallbackForMissing() {
-        let path = DjVuRenderer.toolPath("nonexistent_tool_xyz")
-        #expect(path == "nonexistent_tool_xyz")
+    @Test func toolPath_nilForMissing() {
+        #expect(DjVuRenderer.toolPath("nonexistent_tool_xyz") == nil)
     }
 
     // MARK: - DjVuError descriptions
@@ -184,5 +183,11 @@ struct DjVuRendererTests {
     @Test func errorDescription_unexpectedOutput() {
         let error = DjVuError.unexpectedOutput("bad data")
         #expect(error.errorDescription?.contains("bad data") == true)
+    }
+
+    @Test func errorDescription_toolNotFound() {
+        let error = DjVuError.toolNotFound("djvused")
+        #expect(error.errorDescription?.contains("djvused") == true)
+        #expect(error.errorDescription?.contains("brew install djvulibre") == true)
     }
 }

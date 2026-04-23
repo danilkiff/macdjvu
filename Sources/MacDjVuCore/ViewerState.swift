@@ -3,9 +3,18 @@ import Foundation
 import Observation
 
 /// Fallback page dimensions (pixels) when djvused query fails.
-/// Approximates a typical A4 scan at 300 DPI (≈2480x3508),
-/// rounded for simplicity.
-private let fallbackPageSize = (width: 2000, height: 3000)
+/// A4 at 300 DPI.
+private let fallbackPageSize = (width: 2480, height: 3508)
+
+/// Wraps a security-scoped URL and releases access on deinitialization.
+/// Extracting the release into its own type avoids nonisolated(unsafe)
+/// on ViewerState properties: Swift auto-releases stored properties in
+/// deinit without going through actor isolation checks.
+private final class ScopedResource: @unchecked Sendable {
+    private let url: URL
+    init(_ url: URL) { self.url = url }
+    deinit { url.stopAccessingSecurityScopedResource() }
+}
 
 @Observable
 @MainActor
@@ -18,8 +27,7 @@ public final class ViewerState {
     public static let zoomMax = 600
 
     public var fileURL: URL?
-    /// Tracks the security-scoped URL so deinit can release it.
-    @ObservationIgnored nonisolated(unsafe) private var scopedURL: URL?
+    @ObservationIgnored private var scopedResource: ScopedResource?
     public var pageCount: Int = 0
     public var currentPage: Int = 1
     public var scalePercent: Int = 100
@@ -38,6 +46,8 @@ public final class ViewerState {
         // fileImporter returns security-scoped URLs; child processes
         // (djvused/ddjvu) inherit access only while the scope is active.
         let scoped = url.startAccessingSecurityScopedResource()
+        // Wrap immediately so scope is released automatically on any exit path.
+        let resource: ScopedResource? = scoped ? ScopedResource(url) : nil
 
         do {
             let (count, size) = try await Task.detached(priority: .userInitiated) {
@@ -47,8 +57,8 @@ public final class ViewerState {
             }.value
 
             // Atomically switch to the new document once metadata is ready.
-            scopedURL?.stopAccessingSecurityScopedResource()
-            scopedURL = scoped ? url : nil
+            // Assigning scopedResource releases the previous security scope.
+            scopedResource = resource
             fileURL = url
             pageCount = count
             currentPage = 1
@@ -56,13 +66,9 @@ public final class ViewerState {
             renderedPages.removeAll()
             errorMessage = nil
         } catch {
-            if scoped { url.stopAccessingSecurityScopedResource() }
+            // resource goes out of scope here, releasing the new scope if applicable.
             errorMessage = error.localizedDescription
         }
-    }
-
-    deinit {
-        scopedURL?.stopAccessingSecurityScopedResource()
     }
 
     // MARK: - Navigation
