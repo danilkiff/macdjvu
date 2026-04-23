@@ -1,6 +1,7 @@
 import Foundation
 
-public enum DjVuRenderer {
+public struct DjVuRenderer {
+    private init() {}
 
     /// Page width in pixels at 100% zoom.
     public static let baseWidth: CGFloat = 800

@@ -28,17 +28,19 @@ public final class ViewerState {
 
     public var fileURL: URL?
     @ObservationIgnored private var scopedResource: ScopedResource?
-    // Pages currently being rendered; prevents duplicate concurrent renders for the same page.
-    @ObservationIgnored private var renderingPages: Set<Int> = []
+    // In-flight renders: page → scale being rendered. Prevents duplicate renders per (page, scale).
+    @ObservationIgnored private var renderingPages: [Int: Int] = [:]
+    // Scale at which each page was last rendered; used to detect stale cache entries.
+    @ObservationIgnored var renderedPageScales: [Int: Int] = [:]
     public var pageCount: Int = 0
     public var currentPage: Int = 1
     public var scalePercent: Int = 100
     /// Cached native page sizes, keyed by 1-based page number.
-    public var pageSizes: [Int: (width: Int, height: Int)] = [:]
+    public internal(set) var pageSizes: [Int: (width: Int, height: Int)] = [:]
     public var errorMessage: String?
 
-    // Image cache keyed by 1-based page number
-    public var renderedPages: [Int: NSImage] = [:]
+    /// Image cache keyed by 1-based page number. Written only by renderPageIfNeeded; read by the view layer.
+    public internal(set) var renderedPages: [Int: NSImage] = [:]
 
     public init() {}
 
@@ -66,6 +68,8 @@ public final class ViewerState {
             currentPage = 1
             pageSizes = [1: size]
             renderedPages.removeAll()
+            renderedPageScales.removeAll()
+            renderingPages.removeAll()
             errorMessage = nil
         } catch {
             // resource goes out of scope here, releasing the new scope if applicable.
@@ -98,11 +102,12 @@ public final class ViewerState {
         setZoom(scalePercent - Self.zoomStep)
     }
 
+    /// Sets zoom, clamped to [zoomMin, zoomMax].
+    /// Cached images at the previous scale remain visible until re-rendered at the new scale.
     public func setZoom(_ percent: Int) {
         let clamped = max(Self.zoomMin, min(Self.zoomMax, percent))
         guard clamped != scalePercent else { return }
         scalePercent = clamped
-        renderedPages.removeAll()
     }
 
     // MARK: - Display geometry
@@ -123,25 +128,30 @@ public final class ViewerState {
     // MARK: - Rendering
 
     public func renderPageIfNeeded(_ page: Int) async {
-        guard let url = fileURL,
-              renderedPages[page] == nil,
-              !renderingPages.contains(page) else { return }
-
-        renderingPages.insert(page)
-        defer { renderingPages.remove(page) }
-
+        guard let url = fileURL else { return }
         let scale = scalePercent
+        // Cache hit: already rendered at current scale.
+        guard renderedPageScales[page] != scale else { return }
+        // Dedup: already rendering at current scale.
+        guard renderingPages[page] != scale else { return }
+
+        renderingPages[page] = scale
         do {
             let (data, nativeSize) = try await Task.detached {
                 try DjVuRenderer.renderPage(file: url, page: page, scalePercent: scale)
             }.value
-            // Only store if zoom hasn't changed while we were rendering
-            if scalePercent == scale {
+            // Discard if scale or file changed while rendering.
+            if scalePercent == scale && fileURL == url {
                 renderedPages[page] = NSImage(data: data)
+                renderedPageScales[page] = scale
                 pageSizes[page] = nativeSize
             }
         } catch {
             errorMessage = error.localizedDescription
+        }
+        // Release lock only if we still own it (a newer scale may have overwritten it).
+        if renderingPages[page] == scale {
+            renderingPages.removeValue(forKey: page)
         }
     }
 }

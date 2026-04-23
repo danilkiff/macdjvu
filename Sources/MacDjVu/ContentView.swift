@@ -14,8 +14,6 @@ private let minWindowHeight: CGFloat = 400
 struct ContentView: View {
     @Environment(ViewerState.self) private var state
     @State private var showFileImporter = false
-    // Tracks scroll position: synced with state.currentPage via two onChange modifiers in documentView.
-    @State private var anchoredPage: Int?
 
     var body: some View {
         Group {
@@ -76,13 +74,10 @@ struct ContentView: View {
             }
             .padding(.vertical, pageGap)
         }
-        .scrollPosition(id: $anchoredPage, anchor: .top)
-        .onChange(of: anchoredPage) { _, p in
-            if let p, p != state.currentPage { state.goToPage(p) }
-        }
-        .onChange(of: state.currentPage) { _, p in
-            if p != anchoredPage { anchoredPage = p }
-        }
+        .scrollPosition(id: Binding<Int?>(
+            get: { state.currentPage },
+            set: { if let p = $0 { state.goToPage(p) } }
+        ), anchor: .top)
     }
 
     // MARK: - Placeholder

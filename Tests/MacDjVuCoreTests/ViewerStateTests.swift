@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import MacDjVuCore
@@ -197,19 +198,55 @@ struct ViewerStateTests {
         #expect(state.scalePercent == 50)
     }
 
-    @Test @MainActor func zoomClearsCache() {
+    @Test @MainActor func zoomPreservesCacheForSmoothDisplay() {
         let state = ViewerState()
         state.renderedPages[1] = .init()
         state.renderedPages[2] = .init()
         state.setZoom(200)
-        #expect(state.renderedPages.isEmpty)
+        // Stale images are kept visible during re-render for smoother zoom UX.
+        #expect(state.renderedPages.count == 2)
     }
 
-    @Test @MainActor func zoomSameValueDoesNotClearCache() {
+    @Test @MainActor func zoomSameValueIsNoOp() {
         let state = ViewerState()
         state.renderedPages[1] = .init()
-        state.setZoom(100) // same as default
+        state.setZoom(100) // same as default — guard fires, nothing changes
         #expect(state.renderedPages.count == 1)
+        #expect(state.scalePercent == 100)
+    }
+
+    // MARK: - Rendering guards
+
+    @Test @MainActor func renderPageIfNeededSkipsWithoutFile() async {
+        let state = ViewerState()
+        let sentinel = NSImage()
+        state.renderedPages[1] = sentinel
+        await state.renderPageIfNeeded(1)
+        // No fileURL → returns immediately; cache untouched.
+        #expect(state.renderedPages[1] === sentinel)
+    }
+
+    @Test @MainActor func renderPageIfNeededSkipsOnCacheHit() async {
+        let state = ViewerState()
+        state.fileURL = URL(fileURLWithPath: "/fake.djvu")
+        let sentinel = NSImage()
+        state.renderedPages[1] = sentinel
+        state.renderedPageScales[1] = 100 // matches default scalePercent
+        await state.renderPageIfNeeded(1)
+        // Cache hit: scale matches → returns immediately; no spawn, image unchanged.
+        #expect(state.renderedPages[1] === sentinel)
+    }
+
+    @Test @MainActor func renderPageIfNeededAttemptsRenderOnStaleScale() async {
+        let state = ViewerState()
+        state.fileURL = URL(fileURLWithPath: "/fake.djvu")
+        let sentinel = NSImage()
+        state.renderedPages[1] = sentinel
+        state.renderedPageScales[1] = 50  // stale: cached at 50%, current is 100%
+        await state.renderPageIfNeeded(1)
+        // Render was attempted; it fails on the fake path but errorMessage is set,
+        // confirming the guard did NOT short-circuit.
+        #expect(state.errorMessage != nil)
     }
 
     // MARK: - Display geometry
