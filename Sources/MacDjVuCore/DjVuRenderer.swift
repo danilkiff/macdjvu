@@ -159,7 +159,7 @@ public enum DjVuRenderer {
                 let kv = part.split(separator: "=")
                 if kv.count == 2, let v = Int(kv[1]) { acc[String(kv[0])] = v }
             }
-        guard let w = dict["width"], let h = dict["height"] else {
+        guard let w = dict["width"], let h = dict["height"], w > 0, h > 0 else {
             throw DjVuError.unexpectedOutput(output)
         }
         return PageSize(width: w, height: h)

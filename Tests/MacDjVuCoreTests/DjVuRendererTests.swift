@@ -102,6 +102,24 @@ struct DjVuRendererTests {
         }
     }
 
+    @Test func parsePageSize_zeroWidth() {
+        #expect(throws: DjVuError.self) {
+            try DjVuRenderer.parsePageSize(from: "width=0 height=200")
+        }
+    }
+
+    @Test func parsePageSize_zeroHeight() {
+        #expect(throws: DjVuError.self) {
+            try DjVuRenderer.parsePageSize(from: "width=100 height=0")
+        }
+    }
+
+    @Test func parsePageSize_negativeValue() {
+        #expect(throws: DjVuError.self) {
+            try DjVuRenderer.parsePageSize(from: "width=-100 height=200")
+        }
+    }
+
     // MARK: - scaledPageHeight
 
     @Test func scaledPageHeight_100percent() {
