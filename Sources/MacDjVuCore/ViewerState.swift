@@ -18,6 +18,8 @@ private let fallbackPageSize = (width: 2000, height: 3000)
 @MainActor
 public final class ViewerState {
     public var fileURL: URL?
+    /// Tracks the security-scoped URL so deinit can release it.
+    @ObservationIgnored nonisolated(unsafe) private var scopedURL: URL?
     public var pageCount: Int = 0
     public var currentPage: Int = 1
     public var scalePercent: Int = 100
@@ -32,19 +34,33 @@ public final class ViewerState {
     // MARK: - File
 
     public func openFile(_ url: URL) {
+        // Release previous security scope
+        scopedURL?.stopAccessingSecurityScopedResource()
+        scopedURL = nil
+
+        // fileImporter returns security-scoped URLs; child processes
+        // (djvused/ddjvu) inherit access only while the scope is active.
+        let scoped = url.startAccessingSecurityScopedResource()
+
         do {
             let count = try DjVuRenderer.pageCount(of: url)
             let size = try DjVuRenderer.pageSize(of: url, page: 1)
 
             fileURL = url
+            if scoped { scopedURL = url }
             pageCount = count
             currentPage = 1
             nativeSize = size
             renderedPages.removeAll()
             errorMessage = nil
         } catch {
+            if scoped { url.stopAccessingSecurityScopedResource() }
             errorMessage = error.localizedDescription
         }
+    }
+
+    deinit {
+        scopedURL?.stopAccessingSecurityScopedResource()
     }
 
     // MARK: - Navigation

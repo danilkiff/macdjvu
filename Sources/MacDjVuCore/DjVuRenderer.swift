@@ -32,18 +32,29 @@ public struct DjVuRenderer: Sendable {
         process.executableURL = URL(fileURLWithPath: toolPath(executable))
         process.arguments = arguments
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+        // GUI apps launched from Finder have no LANG/LC_CTYPE.
+        // DjVuLibre uses mbrtowc() to convert argv paths to UTF-8;
+        // without a UTF-8 locale it misinterprets non-ASCII bytes.
+        var env = ProcessInfo.processInfo.environment
+        env["LC_CTYPE"] = "en_US.UTF-8"
+        process.environment = env
+
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
 
         try process.run()
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
-            throw DjVuError.processFailure(executable, Int(process.terminationStatus))
+            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            let stderr = String(data: errData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            throw DjVuError.processFailure(executable, Int(process.terminationStatus), stderr)
         }
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let data = outPipe.fileHandleForReading.readDataToEndOfFile()
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
@@ -110,13 +121,16 @@ public struct DjVuRenderer: Sendable {
 }
 
 public enum DjVuError: Error, LocalizedError {
-    case processFailure(String, Int)
+    case processFailure(String, Int, String)
     case unexpectedOutput(String)
 
     public var errorDescription: String? {
         switch self {
-        case .processFailure(let tool, let code):
-            return "\(tool) failed with exit code \(code)"
+        case .processFailure(let tool, let code, let stderr):
+            if stderr.isEmpty {
+                return "\(tool) failed with exit code \(code)"
+            }
+            return "\(tool) failed with exit code \(code): \(stderr)"
         case .unexpectedOutput(let output):
             return "Unexpected output: \(output)"
         }

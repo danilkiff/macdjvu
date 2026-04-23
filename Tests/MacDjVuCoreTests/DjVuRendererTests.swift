@@ -167,9 +167,14 @@ struct DjVuRendererTests {
     // MARK: - DjVuError descriptions
 
     @Test func errorDescription_processFailure() {
-        let error = DjVuError.processFailure("ddjvu", 1)
+        let error = DjVuError.processFailure("ddjvu", 1, "")
         #expect(error.errorDescription?.contains("ddjvu") == true)
         #expect(error.errorDescription?.contains("1") == true)
+    }
+
+    @Test func errorDescription_processFailureWithStderr() {
+        let error = DjVuError.processFailure("djvused", 10, "Cannot open file")
+        #expect(error.errorDescription == "djvused failed with exit code 10: Cannot open file")
     }
 
     @Test func errorDescription_unexpectedOutput() {
