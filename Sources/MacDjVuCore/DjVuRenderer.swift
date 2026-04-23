@@ -25,6 +25,30 @@ public enum DjVuRenderer {
 
     // MARK: - Shell helpers
 
+    private final class PipeReadResult: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+
+        func set(_ newData: Data) {
+            lock.withLock {
+                data = newData
+            }
+        }
+
+        func value() -> Data {
+            lock.withLock { data }
+        }
+    }
+
+    private static func readPipeAsync(_ pipe: Pipe, into result: PipeReadResult, group: DispatchGroup) {
+        group.enter()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            result.set(data)
+            group.leave()
+        }
+    }
+
     private static func run(_ executable: String, _ arguments: [String]) throws -> String {
         guard let path = toolPath(executable) else {
             throw DjVuError.toolNotFound(executable)
@@ -47,21 +71,24 @@ public enum DjVuRenderer {
         process.standardOutput = outPipe
         process.standardError = errPipe
 
+        let outData = PipeReadResult()
+        let errData = PipeReadResult()
+        let pipeReads = DispatchGroup()
+        readPipeAsync(outPipe, into: outData, group: pipeReads)
+        readPipeAsync(errPipe, into: errData, group: pipeReads)
+
         try process.run()
 
-        // Drain pipes before waiting — if the process fills the ~64 KB pipe
-        // buffer it blocks on write, while waitUntilExit blocks on exit: deadlock.
-        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        pipeReads.wait()
 
         guard process.terminationStatus == 0 else {
-            let stderr = String(data: errData, encoding: .utf8)?
+            let stderr = String(data: errData.value(), encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             throw DjVuError.processFailure(executable, Int(process.terminationStatus), stderr)
         }
 
-        return String(data: outData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return String(data: outData.value(), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     // MARK: - Parsing (public for testing)
