@@ -135,9 +135,15 @@ public final class ViewerState {
 
         renderingPages[page] = scale
         do {
-            let (data, nativeSize) = try await Task.detached(priority: .userInitiated) {
-                try DjVuRenderer.renderPage(file: url, page: page, scalePercent: scale)
-            }.value
+            let renderTask = Task.detached(priority: .userInitiated) {
+                try await DjVuRenderer.renderPageCancellable(file: url, page: page, scalePercent: scale)
+            }
+            let (data, nativeSize) = try await withTaskCancellationHandler {
+                try await renderTask.value
+            } onCancel: {
+                renderTask.cancel()
+            }
+            try Task.checkCancellation()
             // Discard if scale or file changed while rendering.
             if scalePercent == scale && fileURL == url {
                 let image = try Self.decodeRenderedImage(data, page: page)
@@ -146,6 +152,8 @@ public final class ViewerState {
                 pageSizes[page] = nativeSize
                 evictDistantPages()
             }
+        } catch is CancellationError {
+            // View-scoped render tasks are cancelled during fast scrolling or zooming.
         } catch {
             errorMessage = error.localizedDescription
         }

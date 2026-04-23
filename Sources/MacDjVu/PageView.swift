@@ -1,4 +1,5 @@
 import MacDjVuCore
+import Foundation
 import SwiftUI
 
 struct PageView: View {
@@ -23,11 +24,14 @@ struct PageView: View {
             }
         }
         .id(pageNumber)
-        .onAppear {
-            Task { await state.renderPageIfNeeded(pageNumber) }
-        }
-        .onChange(of: state.scalePercent) {
-            Task { await state.renderPageIfNeeded(pageNumber) }
+        .task(id: RenderTaskID(fileURL: state.fileURL, page: pageNumber, scalePercent: state.scalePercent)) {
+            await state.renderPageIfNeeded(pageNumber)
         }
     }
+}
+
+private struct RenderTaskID: Equatable {
+    let fileURL: URL?
+    let page: Int
+    let scalePercent: Int
 }

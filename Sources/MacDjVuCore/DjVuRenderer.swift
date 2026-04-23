@@ -25,6 +25,38 @@ public enum DjVuRenderer {
 
     // MARK: - Shell helpers
 
+    private final class ProcessCancellationController: @unchecked Sendable {
+        private let lock = NSLock()
+        private var process: Process?
+        private var cancellationRequested = false
+
+        func setProcess(_ process: Process) {
+            lock.withLock {
+                self.process = process
+                if cancellationRequested, process.isRunning {
+                    process.terminate()
+                }
+            }
+        }
+
+        func terminateIfCancellationRequested() {
+            lock.withLock {
+                if cancellationRequested, process?.isRunning == true {
+                    process?.terminate()
+                }
+            }
+        }
+
+        func cancel() {
+            lock.withLock {
+                cancellationRequested = true
+                if process?.isRunning == true {
+                    process?.terminate()
+                }
+            }
+        }
+    }
+
     private final class PipeReadResult: @unchecked Sendable {
         private let lock = NSLock()
         private var data = Data()
@@ -49,7 +81,11 @@ public enum DjVuRenderer {
         }
     }
 
-    private static func run(_ executable: String, _ arguments: [String]) throws -> String {
+    private static func run(
+        _ executable: String,
+        _ arguments: [String],
+        cancellationController: ProcessCancellationController? = nil
+    ) throws -> String {
         guard let path = toolPath(executable) else {
             throw DjVuError.toolNotFound(executable)
         }
@@ -77,10 +113,13 @@ public enum DjVuRenderer {
         readPipeAsync(outPipe, into: outData, group: pipeReads)
         readPipeAsync(errPipe, into: errData, group: pipeReads)
 
+        cancellationController?.setProcess(process)
         try process.run()
+        cancellationController?.terminateIfCancellationRequested()
 
         process.waitUntilExit()
         pipeReads.wait()
+        try Task.checkCancellation()
 
         guard process.terminationStatus == 0 else {
             let stderr = String(data: errData.value(), encoding: .utf8)?
@@ -89,6 +128,16 @@ public enum DjVuRenderer {
         }
 
         return String(data: outData.value(), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private static func runCancellable(_ executable: String, _ arguments: [String]) async throws -> String {
+        let cancellationController = ProcessCancellationController()
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try run(executable, arguments, cancellationController: cancellationController)
+        } onCancel: {
+            cancellationController.cancel()
+        }
     }
 
     // MARK: - Parsing (public for testing)
@@ -128,6 +177,11 @@ public enum DjVuRenderer {
         return try parsePageSize(from: output)
     }
 
+    private static func pageSizeCancellable(of file: URL, page: Int) async throws -> PageSize {
+        let output = try await runCancellable("djvused", [file.path(percentEncoded: false), "-e", "select \(page); size"])
+        return try parsePageSize(from: output)
+    }
+
     /// Render a page to TIFF data. Call from a background thread.
     /// Returns the rendered data along with the page's native dimensions.
     public static func renderPage(file: URL, page: Int, scalePercent: Int) throws -> (data: Data, nativeSize: PageSize) {
@@ -148,6 +202,32 @@ public enum DjVuRenderer {
             tmpURL.path(percentEncoded: false),
         ])
 
+        let data = try Data(contentsOf: tmpURL)
+        return (data, native)
+    }
+
+    /// Render a page to TIFF data and terminate DjVuLibre processes if the calling task is cancelled.
+    public static func renderPageCancellable(file: URL, page: Int, scalePercent: Int) async throws -> (data: Data, nativeSize: PageSize) {
+        let native = try await pageSizeCancellable(of: file, page: page)
+        try Task.checkCancellation()
+
+        let targetW = max(1, Int(baseWidth) * scalePercent / 100)
+        let targetH = max(1, targetW * native.height / native.width)
+
+        let tmpURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("tiff")
+        defer { try? FileManager.default.removeItem(at: tmpURL) }
+
+        _ = try await runCancellable("ddjvu", [
+            "-format=tiff",
+            "-page=\(page)",
+            "-size=\(targetW)x\(targetH)",
+            file.path(percentEncoded: false),
+            tmpURL.path(percentEncoded: false),
+        ])
+
+        try Task.checkCancellation()
         let data = try Data(contentsOf: tmpURL)
         return (data, native)
     }
