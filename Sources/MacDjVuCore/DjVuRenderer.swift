@@ -1,11 +1,9 @@
 import Foundation
 
-/// Page width in pixels at 100% zoom.
-/// Chosen to fit comfortably in a typical window (~1000px)
-/// while keeping scanned text readable.
-public let baseWidth: CGFloat = 800
+public enum DjVuRenderer {
 
-public struct DjVuRenderer: Sendable {
+    /// Page width in pixels at 100% zoom.
+    public static let baseWidth: CGFloat = 800
 
     // MARK: - Tool resolution
 
@@ -61,7 +59,8 @@ public struct DjVuRenderer: Sendable {
     // MARK: - Parsing (public for testing)
 
     public static func parsePageCount(from output: String) throws -> Int {
-        guard let count = Int(output.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+        guard let count = Int(output.trimmingCharacters(in: .whitespacesAndNewlines)),
+              count > 0 else {
             throw DjVuError.unexpectedOutput(output)
         }
         return count
@@ -92,7 +91,8 @@ public struct DjVuRenderer: Sendable {
     }
 
     /// Render a page to TIFF data. Call from a background thread.
-    public static func renderPage(file: URL, page: Int, scalePercent: Int) throws -> Data {
+    /// Returns the rendered data along with the page's native dimensions.
+    public static func renderPage(file: URL, page: Int, scalePercent: Int) throws -> (data: Data, nativeSize: (width: Int, height: Int)) {
         let (nativeW, nativeH) = try pageSize(of: file, page: page)
         let targetW = max(1, Int(baseWidth) * scalePercent / 100)
         let targetH = max(1, targetW * nativeH / nativeW)
@@ -102,7 +102,7 @@ public struct DjVuRenderer: Sendable {
             .appendingPathExtension("tiff")
         defer { try? FileManager.default.removeItem(at: tmpURL) }
 
-        let _ = try run("ddjvu", [
+        _ = try run("ddjvu", [
             "-format=tiff",
             "-page=\(page)",
             "-size=\(targetW)x\(targetH)",
@@ -110,7 +110,8 @@ public struct DjVuRenderer: Sendable {
             tmpURL.path,
         ])
 
-        return try Data(contentsOf: tmpURL)
+        let data = try Data(contentsOf: tmpURL)
+        return (data, (nativeW, nativeH))
     }
 
     /// Compute display height for a page at a given zoom.

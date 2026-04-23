@@ -30,12 +30,16 @@ struct DjVuRendererTests {
         }
     }
 
-    @Test func parsePageCount_negative() throws {
-        #expect(try DjVuRenderer.parsePageCount(from: "-5") == -5)
+    @Test func parsePageCount_negative() {
+        #expect(throws: DjVuError.self) {
+            try DjVuRenderer.parsePageCount(from: "-5")
+        }
     }
 
-    @Test func parsePageCount_zero() throws {
-        #expect(try DjVuRenderer.parsePageCount(from: "0") == 0)
+    @Test func parsePageCount_zero() {
+        #expect(throws: DjVuError.self) {
+            try DjVuRenderer.parsePageCount(from: "0")
+        }
     }
 
     @Test func parsePageCount_float() {

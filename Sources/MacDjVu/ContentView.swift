@@ -33,11 +33,13 @@ struct ContentView: View {
             allowedContentTypes: [djvuType]
         ) { result in
             if case .success(let url) = result {
-                state.openFile(url)
+                Task { await state.openFile(url) }
             }
         }
-        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-            handleDrop(providers)
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first(where: { $0.pathExtension.lowercased() == "djvu" }) else { return false }
+            Task { await state.openFile(url) }
+            return true
         }
         .alert("Error", isPresented: .init(
             get: { state.errorMessage != nil },
@@ -114,7 +116,7 @@ struct ContentView: View {
             } label: {
                 Image(systemName: "minus.magnifyingglass")
             }
-            .disabled(state.fileURL == nil || state.scalePercent <= zoomMin)
+            .disabled(state.fileURL == nil || state.scalePercent <= ViewerState.zoomMin)
             .help("Zoom out")
 
             Button {
@@ -130,7 +132,7 @@ struct ContentView: View {
             } label: {
                 Image(systemName: "plus.magnifyingglass")
             }
-            .disabled(state.fileURL == nil || state.scalePercent >= zoomMax)
+            .disabled(state.fileURL == nil || state.scalePercent >= ViewerState.zoomMax)
             .help("Zoom in")
         }
 
@@ -145,21 +147,7 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Helpers
-
     private func scrollTo(_ page: Int) {
         scrollTarget = page
-    }
-
-    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
-        provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
-            guard let data = item as? Data,
-                  let url = URL(dataRepresentation: data, relativeTo: nil),
-                  url.pathExtension.lowercased() == "djvu"
-            else { return }
-            Task { @MainActor in state.openFile(url) }
-        }
-        return true
     }
 }

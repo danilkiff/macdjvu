@@ -24,7 +24,7 @@ struct MacDjVuApp: App {
         let path = CommandLine.arguments[1]
         let url = URL(fileURLWithPath: path)
         if url.pathExtension.lowercased() == "djvu" {
-            state.openFile(url)
+            Task { await state.openFile(url) }
         }
     }
 }

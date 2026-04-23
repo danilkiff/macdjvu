@@ -233,14 +233,14 @@ struct ViewerStateTests {
 
     @Test @MainActor func displayHeight_portrait() {
         let state = ViewerState()
-        state.nativeSize = (width: 2000, height: 3000)
+        state.pageSizes = [1: (width: 2000, height: 3000)]
         state.scalePercent = 100
         #expect(state.displayHeight() == 1200)
     }
 
     @Test @MainActor func displayHeight_landscape() {
         let state = ViewerState()
-        state.nativeSize = (width: 3000, height: 2000)
+        state.pageSizes = [1: (width: 3000, height: 2000)]
         state.scalePercent = 100
         // 800 * 2000/3000 ≈ 533.33
         #expect(state.displayHeight() > 533)
@@ -249,7 +249,7 @@ struct ViewerStateTests {
 
     @Test @MainActor func displayHeight_square() {
         let state = ViewerState()
-        state.nativeSize = (width: 1000, height: 1000)
+        state.pageSizes = [1: (width: 1000, height: 1000)]
         state.scalePercent = 100
         #expect(state.displayHeight() == 800)
     }
