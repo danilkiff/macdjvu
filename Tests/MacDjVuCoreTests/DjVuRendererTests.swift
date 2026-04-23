@@ -92,10 +92,11 @@ struct DjVuRendererTests {
         }
     }
 
-    @Test func parsePageSize_threeFields() {
-        #expect(throws: DjVuError.self) {
-            try DjVuRenderer.parsePageSize(from: "width=100 height=200 depth=300")
-        }
+    @Test func parsePageSize_extraField() throws {
+        // Extra fields (e.g. future djvused output) should be silently ignored
+        let (w, h) = try DjVuRenderer.parsePageSize(from: "width=100 height=200 depth=300")
+        #expect(w == 100)
+        #expect(h == 200)
     }
 
     @Test func parsePageSize_nonNumericValue() {

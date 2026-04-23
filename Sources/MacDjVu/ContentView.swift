@@ -14,7 +14,8 @@ private let minWindowHeight: CGFloat = 400
 struct ContentView: View {
     @Environment(ViewerState.self) private var state
     @State private var showFileImporter = false
-    @State private var scrollTarget: Int?
+    // Tracks scroll position: synced with state.currentPage via two onChange modifiers in documentView.
+    @State private var anchoredPage: Int?
 
     var body: some View {
         Group {
@@ -53,12 +54,12 @@ struct ContentView: View {
         .frame(minWidth: minWindowWidth, minHeight: minWindowHeight)
         .background(Color(white: 0.2))
         .focusable()
-        .onKeyPress(.rightArrow) { state.nextPage(); scrollTo(state.currentPage); return .handled }
-        .onKeyPress(.leftArrow) { state.prevPage(); scrollTo(state.currentPage); return .handled }
-        .onKeyPress(.pageDown) { state.nextPage(); scrollTo(state.currentPage); return .handled }
-        .onKeyPress(.pageUp) { state.prevPage(); scrollTo(state.currentPage); return .handled }
-        .onKeyPress(.home) { state.goToPage(1); scrollTo(1); return .handled }
-        .onKeyPress(.end) { state.goToPage(state.pageCount); scrollTo(state.pageCount); return .handled }
+        .onKeyPress(.rightArrow) { state.nextPage(); return .handled }
+        .onKeyPress(.leftArrow) { state.prevPage(); return .handled }
+        .onKeyPress(.pageDown) { state.nextPage(); return .handled }
+        .onKeyPress(.pageUp) { state.prevPage(); return .handled }
+        .onKeyPress(.home) { state.goToPage(1); return .handled }
+        .onKeyPress(.end) { state.goToPage(state.pageCount); return .handled }
         .onKeyPress("+") { state.zoomIn(); return .handled }
         .onKeyPress("=") { state.zoomIn(); return .handled }
         .onKeyPress("-") { state.zoomOut(); return .handled }
@@ -67,29 +68,20 @@ struct ContentView: View {
     // MARK: - Document view
 
     private var documentView: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical) {
-                LazyVStack(spacing: pageGap) {
-                    ForEach(1...state.pageCount, id: \.self) { page in
-                        PageView(pageNumber: page)
-                    }
-                }
-                .padding(.vertical, pageGap)
-            }
-            .scrollPosition(id: .init(
-                get: { scrollTarget },
-                set: { newPage in
-                    if let p = newPage, p != state.currentPage {
-                        state.currentPage = p
-                    }
-                }
-            ), anchor: .top)
-            .onChange(of: scrollTarget) { _, target in
-                if let target {
-                    proxy.scrollTo(target, anchor: .top)
-                    scrollTarget = nil
+        ScrollView(.vertical) {
+            LazyVStack(spacing: pageGap) {
+                ForEach(1...state.pageCount, id: \.self) { page in
+                    PageView(pageNumber: page)
                 }
             }
+            .padding(.vertical, pageGap)
+        }
+        .scrollPosition(id: $anchoredPage, anchor: .top)
+        .onChange(of: anchoredPage) { _, p in
+            if let p, p != state.currentPage { state.goToPage(p) }
+        }
+        .onChange(of: state.currentPage) { _, p in
+            if p != anchoredPage { anchoredPage = p }
         }
     }
 
@@ -147,7 +139,4 @@ struct ContentView: View {
         }
     }
 
-    private func scrollTo(_ page: Int) {
-        scrollTarget = page
-    }
 }

@@ -72,12 +72,15 @@ public enum DjVuRenderer {
     }
 
     public static func parsePageSize(from output: String) throws -> (width: Int, height: Int) {
-        // "width=3433 height=4947"
-        let parts = output.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ")
-        guard parts.count == 2,
-              let w = parts[0].split(separator: "=").last.flatMap({ Int($0) }),
-              let h = parts[1].split(separator: "=").last.flatMap({ Int($0) })
-        else {
+        // "width=3433 height=4947" — parse as key=value pairs, order-independent
+        let dict = output
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ")
+            .reduce(into: [String: Int]()) { acc, part in
+                let kv = part.split(separator: "=")
+                if kv.count == 2, let v = Int(kv[1]) { acc[String(kv[0])] = v }
+            }
+        guard let w = dict["width"], let h = dict["height"] else {
             throw DjVuError.unexpectedOutput(output)
         }
         return (w, h)

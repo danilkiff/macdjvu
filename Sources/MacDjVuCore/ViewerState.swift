@@ -28,6 +28,8 @@ public final class ViewerState {
 
     public var fileURL: URL?
     @ObservationIgnored private var scopedResource: ScopedResource?
+    // Pages currently being rendered; prevents duplicate concurrent renders for the same page.
+    @ObservationIgnored private var renderingPages: Set<Int> = []
     public var pageCount: Int = 0
     public var currentPage: Int = 1
     public var scalePercent: Int = 100
@@ -121,7 +123,12 @@ public final class ViewerState {
     // MARK: - Rendering
 
     public func renderPageIfNeeded(_ page: Int) async {
-        guard let url = fileURL, renderedPages[page] == nil else { return }
+        guard let url = fileURL,
+              renderedPages[page] == nil,
+              !renderingPages.contains(page) else { return }
+
+        renderingPages.insert(page)
+        defer { renderingPages.remove(page) }
 
         let scale = scalePercent
         do {
