@@ -51,27 +51,19 @@ struct DjVuRendererTests {
     // MARK: - parsePageSize
 
     @Test func parsePageSize_valid() throws {
-        let (w, h) = try DjVuRenderer.parsePageSize(from: "width=3433 height=4947\n")
-        #expect(w == 3433)
-        #expect(h == 4947)
+        #expect(try DjVuRenderer.parsePageSize(from: "width=3433 height=4947\n") == PageSize(width: 3433, height: 4947))
     }
 
     @Test func parsePageSize_smallValues() throws {
-        let (w, h) = try DjVuRenderer.parsePageSize(from: "width=100 height=200")
-        #expect(w == 100)
-        #expect(h == 200)
+        #expect(try DjVuRenderer.parsePageSize(from: "width=100 height=200") == PageSize(width: 100, height: 200))
     }
 
     @Test func parsePageSize_withCRLF() throws {
-        let (w, h) = try DjVuRenderer.parsePageSize(from: "width=800 height=600\r\n")
-        #expect(w == 800)
-        #expect(h == 600)
+        #expect(try DjVuRenderer.parsePageSize(from: "width=800 height=600\r\n") == PageSize(width: 800, height: 600))
     }
 
     @Test func parsePageSize_extraWhitespace() throws {
-        let (w, h) = try DjVuRenderer.parsePageSize(from: "  width=800 height=600  \n")
-        #expect(w == 800)
-        #expect(h == 600)
+        #expect(try DjVuRenderer.parsePageSize(from: "  width=800 height=600  \n") == PageSize(width: 800, height: 600))
     }
 
     @Test func parsePageSize_invalid() {
@@ -94,9 +86,7 @@ struct DjVuRendererTests {
 
     @Test func parsePageSize_extraField() throws {
         // Extra fields (e.g. future djvused output) should be silently ignored
-        let (w, h) = try DjVuRenderer.parsePageSize(from: "width=100 height=200 depth=300")
-        #expect(w == 100)
-        #expect(h == 200)
+        #expect(try DjVuRenderer.parsePageSize(from: "width=100 height=200 depth=300") == PageSize(width: 100, height: 200))
     }
 
     @Test func parsePageSize_nonNumericValue() {
@@ -114,45 +104,45 @@ struct DjVuRendererTests {
     // MARK: - scaledPageHeight
 
     @Test func scaledPageHeight_100percent() {
-        let h = DjVuRenderer.scaledPageHeight(nativeWidth: 2000, nativeHeight: 3000, scalePercent: 100)
+        let h = DjVuRenderer.scaledPageHeight(PageSize(width: 2000, height: 3000), scalePercent: 100)
         #expect(h == 1200)
     }
 
     @Test func scaledPageHeight_200percent() {
-        let h = DjVuRenderer.scaledPageHeight(nativeWidth: 2000, nativeHeight: 3000, scalePercent: 200)
+        let h = DjVuRenderer.scaledPageHeight(PageSize(width: 2000, height: 3000), scalePercent: 200)
         #expect(h == 2400)
     }
 
     @Test func scaledPageHeight_50percent() {
-        let h = DjVuRenderer.scaledPageHeight(nativeWidth: 2000, nativeHeight: 3000, scalePercent: 50)
+        let h = DjVuRenderer.scaledPageHeight(PageSize(width: 2000, height: 3000), scalePercent: 50)
         #expect(h == 600)
     }
 
     @Test func scaledPageHeight_squarePage() {
-        let h = DjVuRenderer.scaledPageHeight(nativeWidth: 1000, nativeHeight: 1000, scalePercent: 100)
+        let h = DjVuRenderer.scaledPageHeight(PageSize(width: 1000, height: 1000), scalePercent: 100)
         #expect(h == 800)
     }
 
     @Test func scaledPageHeight_widePage() {
         // 800 * 500/2000 = 200
-        let h = DjVuRenderer.scaledPageHeight(nativeWidth: 2000, nativeHeight: 500, scalePercent: 100)
+        let h = DjVuRenderer.scaledPageHeight(PageSize(width: 2000, height: 500), scalePercent: 100)
         #expect(h == 200)
     }
 
     @Test func scaledPageHeight_tinyPage() {
-        let h = DjVuRenderer.scaledPageHeight(nativeWidth: 1, nativeHeight: 1, scalePercent: 100)
+        let h = DjVuRenderer.scaledPageHeight(PageSize(width: 1, height: 1), scalePercent: 100)
         #expect(h == 800)
     }
 
     @Test func scaledPageHeight_veryTallPage() {
         // 800 * 10000/100 = 80000
-        let h = DjVuRenderer.scaledPageHeight(nativeWidth: 100, nativeHeight: 10000, scalePercent: 100)
+        let h = DjVuRenderer.scaledPageHeight(PageSize(width: 100, height: 10000), scalePercent: 100)
         #expect(h == 80000)
     }
 
     @Test func scaledPageHeight_minimumScale() {
         // baseWidth * 1/100 = 8, 8 * 3000/2000 = 12
-        let h = DjVuRenderer.scaledPageHeight(nativeWidth: 2000, nativeHeight: 3000, scalePercent: 1)
+        let h = DjVuRenderer.scaledPageHeight(PageSize(width: 2000, height: 3000), scalePercent: 1)
         #expect(h == 12)
     }
 

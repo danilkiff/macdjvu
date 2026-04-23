@@ -23,7 +23,7 @@ struct MacDjVuApp: App {
         guard CommandLine.arguments.count > 1 else { return }
         let path = CommandLine.arguments[1]
         let url = URL(fileURLWithPath: path)
-        if url.pathExtension.lowercased() == "djvu" {
+        if ["djvu", "djv"].contains(url.pathExtension.lowercased()) {
             Task { await state.openFile(url) }
         }
     }

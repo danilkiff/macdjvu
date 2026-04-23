@@ -2,7 +2,10 @@ import MacDjVuCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-private let djvuType = UTType(filenameExtension: "djvu") ?? .data
+private let djvuTypes = [
+    UTType(filenameExtension: "djvu"),
+    UTType(filenameExtension: "djv"),
+].compactMap { $0 }
 
 /// Vertical spacing between pages in the scroll view (points).
 private let pageGap: CGFloat = 12
@@ -29,14 +32,14 @@ struct ContentView: View {
         .toolbarTitleDisplayMode(.inline)
         .fileImporter(
             isPresented: $showFileImporter,
-            allowedContentTypes: [djvuType]
+            allowedContentTypes: djvuTypes
         ) { result in
             if case .success(let url) = result {
                 Task { await state.openFile(url) }
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
-            guard let url = urls.first(where: { $0.pathExtension.lowercased() == "djvu" }) else { return false }
+            guard let url = urls.first(where: { ["djvu", "djv"].contains($0.pathExtension.lowercased()) }) else { return false }
             Task { await state.openFile(url) }
             return true
         }

@@ -4,7 +4,7 @@ import Observation
 
 /// Fallback page dimensions (pixels) when djvused query fails.
 /// A4 at 300 DPI.
-private let fallbackPageSize = (width: 2480, height: 3508)
+private let fallbackPageSize = PageSize(width: 2480, height: 3508)
 
 /// Wraps a security-scoped URL and releases access on deinitialization.
 /// Extracting the release into its own type avoids nonisolated(unsafe)
@@ -36,7 +36,7 @@ public final class ViewerState {
     public var currentPage: Int = 1
     public var scalePercent: Int = 100
     /// Cached native page sizes, keyed by 1-based page number.
-    public internal(set) var pageSizes: [Int: (width: Int, height: Int)] = [:]
+    public internal(set) var pageSizes: [Int: PageSize] = [:]
     public var errorMessage: String?
 
     /// Image cache keyed by 1-based page number. Written only by renderPageIfNeeded; read by the view layer.
@@ -54,11 +54,17 @@ public final class ViewerState {
         let resource: ScopedResource? = scoped ? ScopedResource(url) : nil
 
         do {
-            let (count, size) = try await Task.detached(priority: .userInitiated) {
-                let count = try DjVuRenderer.pageCount(of: url)
-                let size = try DjVuRenderer.pageSize(of: url, page: 1)
-                return (count, size)
-            }.value
+            let (count, size) = try await withCheckedThrowingContinuation { cont in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let count = try DjVuRenderer.pageCount(of: url)
+                        let size = try DjVuRenderer.pageSize(of: url, page: 1)
+                        cont.resume(returning: (count, size))
+                    } catch {
+                        cont.resume(throwing: error)
+                    }
+                }
+            }
 
             // Atomically switch to the new document once metadata is ready.
             // Assigning scopedResource releases the previous security scope.
@@ -118,11 +124,7 @@ public final class ViewerState {
 
     public func displayHeight(page: Int = 1) -> CGFloat {
         let size = pageSizes[page] ?? pageSizes[1] ?? fallbackPageSize
-        return DjVuRenderer.scaledPageHeight(
-            nativeWidth: size.width,
-            nativeHeight: size.height,
-            scalePercent: scalePercent
-        )
+        return DjVuRenderer.scaledPageHeight(size, scalePercent: scalePercent)
     }
 
     // MARK: - Rendering
@@ -137,9 +139,15 @@ public final class ViewerState {
 
         renderingPages[page] = scale
         do {
-            let (data, nativeSize) = try await Task.detached {
-                try DjVuRenderer.renderPage(file: url, page: page, scalePercent: scale)
-            }.value
+            let (data, nativeSize) = try await withCheckedThrowingContinuation { cont in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        cont.resume(returning: try DjVuRenderer.renderPage(file: url, page: page, scalePercent: scale))
+                    } catch {
+                        cont.resume(throwing: error)
+                    }
+                }
+            }
             // Discard if scale or file changed while rendering.
             if scalePercent == scale && fileURL == url {
                 renderedPages[page] = NSImage(data: data)

@@ -1,7 +1,6 @@
 import Foundation
 
-public struct DjVuRenderer {
-    private init() {}
+public enum DjVuRenderer {
 
     /// Page width in pixels at 100% zoom.
     public static let baseWidth: CGFloat = 800
@@ -49,17 +48,20 @@ public struct DjVuRenderer {
         process.standardError = errPipe
 
         try process.run()
+
+        // Drain pipes before waiting — if the process fills the ~64 KB pipe
+        // buffer it blocks on write, while waitUntilExit blocks on exit: deadlock.
+        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
             let stderr = String(data: errData, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             throw DjVuError.processFailure(executable, Int(process.terminationStatus), stderr)
         }
 
-        let data = outPipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return String(data: outData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     // MARK: - Parsing (public for testing)
@@ -72,7 +74,7 @@ public struct DjVuRenderer {
         return count
     }
 
-    public static func parsePageSize(from output: String) throws -> (width: Int, height: Int) {
+    public static func parsePageSize(from output: String) throws -> PageSize {
         // "width=3433 height=4947" — parse as key=value pairs, order-independent
         let dict = output
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -84,27 +86,27 @@ public struct DjVuRenderer {
         guard let w = dict["width"], let h = dict["height"] else {
             throw DjVuError.unexpectedOutput(output)
         }
-        return (w, h)
+        return PageSize(width: w, height: h)
     }
 
     // MARK: - Public API
 
     public static func pageCount(of file: URL) throws -> Int {
-        let output = try run("djvused", [file.path, "-e", "n"])
+        let output = try run("djvused", [file.path(percentEncoded: false), "-e", "n"])
         return try parsePageCount(from: output)
     }
 
-    public static func pageSize(of file: URL, page: Int) throws -> (width: Int, height: Int) {
-        let output = try run("djvused", [file.path, "-e", "select \(page); size"])
+    public static func pageSize(of file: URL, page: Int) throws -> PageSize {
+        let output = try run("djvused", [file.path(percentEncoded: false), "-e", "select \(page); size"])
         return try parsePageSize(from: output)
     }
 
     /// Render a page to TIFF data. Call from a background thread.
     /// Returns the rendered data along with the page's native dimensions.
-    public static func renderPage(file: URL, page: Int, scalePercent: Int) throws -> (data: Data, nativeSize: (width: Int, height: Int)) {
-        let (nativeW, nativeH) = try pageSize(of: file, page: page)
+    public static func renderPage(file: URL, page: Int, scalePercent: Int) throws -> (data: Data, nativeSize: PageSize) {
+        let native = try pageSize(of: file, page: page)
         let targetW = max(1, Int(baseWidth) * scalePercent / 100)
-        let targetH = max(1, targetW * nativeH / nativeW)
+        let targetH = max(1, targetW * native.height / native.width)
 
         let tmpURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -115,18 +117,27 @@ public struct DjVuRenderer {
             "-format=tiff",
             "-page=\(page)",
             "-size=\(targetW)x\(targetH)",
-            file.path,
-            tmpURL.path,
+            file.path(percentEncoded: false),
+            tmpURL.path(percentEncoded: false),
         ])
 
         let data = try Data(contentsOf: tmpURL)
-        return (data, (nativeW, nativeH))
+        return (data, native)
     }
 
     /// Compute display height for a page at a given zoom.
-    public static func scaledPageHeight(nativeWidth: Int, nativeHeight: Int, scalePercent: Int) -> CGFloat {
+    public static func scaledPageHeight(_ size: PageSize, scalePercent: Int) -> CGFloat {
         let targetW = max(1, CGFloat(baseWidth) * CGFloat(scalePercent) / 100)
-        return max(1, targetW * CGFloat(nativeHeight) / CGFloat(nativeWidth))
+        return max(1, targetW * CGFloat(size.height) / CGFloat(size.width))
+    }
+}
+
+public struct PageSize: Equatable, Sendable {
+    public let width: Int
+    public let height: Int
+    public init(width: Int, height: Int) {
+        self.width = width
+        self.height = height
     }
 }
 
