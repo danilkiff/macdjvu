@@ -27,6 +27,12 @@ struct MacDjVuApp: App {
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .textEditing) {
+                Button("Find\u{2026}") {
+                    state.toggleSearch()
+                }
+                .keyboardShortcut("f")
+            }
         }
     }
 

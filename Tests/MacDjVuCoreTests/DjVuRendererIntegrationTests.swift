@@ -57,6 +57,63 @@ struct DjVuRendererIntegrationTests {
         #expect(state.renderedPageCosts[2] != nil)
         #expect(state.pageSizes[2] == PageSize(width: 24, height: 48))
     }
+    // MARK: - Text extraction
+
+    @Test func extractsTextFromFixtureWithTextLayer() throws {
+        try requireDjVuLibreTools()
+        let url = try fixtureURL("with-text")
+
+        let pageText = try DjVuRenderer.pageText(of: url, page: 1)
+        #expect(pageText.words.count == 2)
+        #expect(pageText.words[0].text == "Hello")
+        #expect(pageText.words[0].xmin == 5)
+        #expect(pageText.words[0].ymin == 10)
+        #expect(pageText.words[0].xmax == 18)
+        #expect(pageText.words[0].ymax == 25)
+        #expect(pageText.words[1].text == "world")
+        #expect(pageText.words[1].xmin == 20)
+        #expect(pageText.words[1].ymin == 10)
+        #expect(pageText.words[1].xmax == 35)
+        #expect(pageText.words[1].ymax == 25)
+        #expect(pageText.plainText == "Hello world")
+    }
+
+    @Test func extractsEmptyTextFromFixtureWithoutTextLayer() throws {
+        try requireDjVuLibreTools()
+        let url = try fixtureURL("single-page")
+
+        let pageText = try DjVuRenderer.pageText(of: url, page: 1)
+        #expect(pageText.words.isEmpty)
+        #expect(pageText.plainText == "")
+    }
+
+    @Test @MainActor func viewerStateSearchesFixtureWithText() async throws {
+        try requireDjVuLibreTools()
+        let url = try fixtureURL("with-text")
+        let state = ViewerState()
+
+        await state.openFile(url)
+        #expect(state.errorMessage == nil)
+
+        await state.performSearch("Hello")
+        #expect(state.searchMatches.count == 1)
+        #expect(state.searchMatches[0].page == 1)
+        #expect(state.searchMatches[0].wordIndices == [0])
+        #expect(state.currentMatchIndex == 0)
+    }
+
+    @Test @MainActor func viewerStateSearchFindsNoMatchesInFileWithoutText() async throws {
+        try requireDjVuLibreTools()
+        let url = try fixtureURL("single-page")
+        let state = ViewerState()
+
+        await state.openFile(url)
+        #expect(state.errorMessage == nil)
+
+        await state.performSearch("anything")
+        #expect(state.searchMatches.isEmpty)
+        #expect(state.currentMatchIndex == nil)
+    }
 }
 
 private func fixtureURL(_ name: String) throws -> URL {

@@ -48,6 +48,15 @@ public final class ViewerState {
     /// Image cache keyed by 1-based page number. Written only by renderPageIfNeeded; read by the view layer.
     public internal(set) var renderedPages: [Int: NSImage] = [:]
 
+    // MARK: - Search state
+
+    public var isSearchActive: Bool = false
+    public var searchQuery: String = ""
+    public internal(set) var searchMatches: [SearchMatch] = []
+    public var currentMatchIndex: Int? = nil
+    /// Cached extracted text per page (1-based key). Populated on demand during search.
+    @ObservationIgnored package var pageTextCache: [Int: DjVuPageText] = [:]
+
     public init() {}
 
     // MARK: - File
@@ -77,6 +86,10 @@ public final class ViewerState {
             renderedPageScales.removeAll()
             renderedPageCosts.removeAll()
             renderingPages.removeAll()
+            pageTextCache.removeAll()
+            searchMatches = []
+            currentMatchIndex = nil
+            searchQuery = ""
             errorMessage = nil
         } catch {
             // resource goes out of scope here, releasing the new scope if applicable.
@@ -115,6 +128,80 @@ public final class ViewerState {
         let clamped = max(Self.zoomMin, min(Self.zoomMax, percent))
         guard clamped != scalePercent else { return }
         scalePercent = clamped
+    }
+
+    // MARK: - Search
+
+    public func toggleSearch() {
+        if isSearchActive {
+            dismissSearch()
+        } else {
+            isSearchActive = true
+        }
+    }
+
+    public func dismissSearch() {
+        isSearchActive = false
+        searchQuery = ""
+        searchMatches = []
+        currentMatchIndex = nil
+    }
+
+    public func performSearch(_ query: String) async {
+        searchQuery = query
+        guard !query.isEmpty, fileURL != nil, pageCount > 0 else {
+            searchMatches = []
+            currentMatchIndex = nil
+            return
+        }
+
+        var matches: [SearchMatch] = []
+        for page in 1...pageCount {
+            let pageText = await extractPageText(page: page)
+            // Bail out if query changed during async extraction.
+            guard searchQuery == query else { return }
+            let pageMatches = DjVuRenderer.findMatches(in: pageText, query: query, page: page)
+            matches.append(contentsOf: pageMatches)
+        }
+
+        guard searchQuery == query else { return }
+        searchMatches = matches
+        currentMatchIndex = matches.isEmpty ? nil : 0
+        if let first = matches.first {
+            goToPage(first.page)
+        }
+    }
+
+    public func nextMatch() {
+        guard !searchMatches.isEmpty, let idx = currentMatchIndex else { return }
+        let next = (idx + 1) % searchMatches.count
+        currentMatchIndex = next
+        goToPage(searchMatches[next].page)
+    }
+
+    public func previousMatch() {
+        guard !searchMatches.isEmpty, let idx = currentMatchIndex else { return }
+        let prev = (idx - 1 + searchMatches.count) % searchMatches.count
+        currentMatchIndex = prev
+        goToPage(searchMatches[prev].page)
+    }
+
+    private func extractPageText(page: Int) async -> DjVuPageText {
+        if let cached = pageTextCache[page] {
+            return cached
+        }
+        guard let url = fileURL else {
+            return DjVuPageText(words: [])
+        }
+        do {
+            let text = try await Task.detached(priority: .userInitiated) {
+                try await DjVuRenderer.pageTextCancellable(of: url, page: page)
+            }.value
+            pageTextCache[page] = text
+            return text
+        } catch {
+            return DjVuPageText(words: [])
+        }
     }
 
     // MARK: - Display geometry

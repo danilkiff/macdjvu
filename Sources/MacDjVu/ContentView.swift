@@ -21,7 +21,12 @@ struct ContentView: View {
     var body: some View {
         Group {
             if state.fileURL != nil {
-                documentView
+                ZStack(alignment: .top) {
+                    documentView
+                    if state.isSearchActive {
+                        SearchBar()
+                    }
+                }
             } else {
                 placeholderView
             }
@@ -64,6 +69,11 @@ struct ContentView: View {
         .onKeyPress("+") { state.zoomIn(); return .handled }
         .onKeyPress("=") { state.zoomIn(); return .handled }
         .onKeyPress("-") { state.zoomOut(); return .handled }
+        .onKeyPress(.escape) {
+            guard state.isSearchActive else { return .ignored }
+            state.dismissSearch()
+            return .handled
+        }
     }
 
     // MARK: - Document view

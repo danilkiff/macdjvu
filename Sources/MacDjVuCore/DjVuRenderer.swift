@@ -232,6 +232,18 @@ public enum DjVuRenderer {
         return (data, native)
     }
 
+    // MARK: - Text extraction
+
+    public static func pageText(of file: URL, page: Int) throws -> DjVuPageText {
+        let output = try run("djvused", [file.path(percentEncoded: false), "-u", "-e", "select \(page); print-txt"])
+        return parsePageText(from: output)
+    }
+
+    public static func pageTextCancellable(of file: URL, page: Int) async throws -> DjVuPageText {
+        let output = try await runCancellable("djvused", [file.path(percentEncoded: false), "-u", "-e", "select \(page); print-txt"])
+        return parsePageText(from: output)
+    }
+
     /// Compute display height for a page at a given zoom.
     public static func scaledPageHeight(_ size: PageSize, scalePercent: Int) -> CGFloat {
         let targetW = max(1, CGFloat(baseWidth) * CGFloat(scalePercent) / 100)

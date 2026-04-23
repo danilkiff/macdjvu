@@ -22,6 +22,10 @@ struct PageView: View {
             } else {
                 ProgressView()
             }
+
+            if state.isSearchActive && !state.searchMatches.isEmpty {
+                SearchHighlightOverlay(pageNumber: pageNumber)
+            }
         }
         .id(pageNumber)
         .task(id: RenderTaskID(fileURL: state.fileURL, page: pageNumber, scalePercent: state.scalePercent)) {
