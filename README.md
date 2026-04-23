@@ -2,6 +2,12 @@
 
 Native macOS DjVu file reader. Swift + SwiftUI, decoding via DjVuLibre.
 
+## Disclaimer
+
+This project was built with AI-assisted development. It was created primarily
+for my personal DjVu-reading workflow, so features and priorities follow those
+needs rather than a general-purpose product roadmap.
+
 ## Install
 
 Download `MacDjVu.app.zip` from
@@ -44,4 +50,3 @@ open MacDjVu.app
 `swift run` is not supported — SPM executables lack a proper .app bundle
 (no `Info.plist`, no bundle identifier), which causes SwiftUI window
 management issues. Use `bundle.sh` to produce a working `MacDjVu.app`.
-
