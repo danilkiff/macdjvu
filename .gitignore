@@ -2,6 +2,7 @@
 .swiftpm/
 .DS_Store
 MacDjVu.app/
+*.dmg
 *.xcodeproj/
 xcuserdata/
 DerivedData/

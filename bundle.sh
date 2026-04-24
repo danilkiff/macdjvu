@@ -39,3 +39,18 @@ xcrun actool Assets.xcassets \
     --output-partial-info-plist /dev/null 2>&1
 
 echo "Built: $APP"
+
+# --- Create DMG ---
+DMG="MacDjVu.dmg"
+STAGING=$(mktemp -d)
+cp -R "$APP" "$STAGING/"
+ln -s /Applications "$STAGING/Applications"
+
+rm -f "$DMG"
+hdiutil create -volname MacDjVu \
+    -srcfolder "$STAGING" \
+    -ov -format UDZO \
+    "$DMG" 2>&1
+
+rm -rf "$STAGING"
+echo "Built: $DMG"

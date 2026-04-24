@@ -30,11 +30,8 @@ jobs:
           ! otool -L MacDjVu.app/Contents/Helpers/bin/* MacDjVu.app/Contents/Helpers/lib/* \
             | grep /opt/homebrew
 
-      - name: Create zip
-        run: ditto -c -k --keepParent MacDjVu.app MacDjVu.app.zip
-
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
-          files: MacDjVu.app.zip
+          files: MacDjVu.dmg
           generate_release_notes: true

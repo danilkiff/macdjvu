@@ -10,7 +10,7 @@
 
 ## Install
 
-Download `MacDjVu.app.zip` from [Releases](https://github.com/danilkiff/macdjvu/releases), unzip, and move to `/Applications`.
+Download `MacDjVu.dmg` from [Releases](https://github.com/danilkiff/macdjvu/releases), open, and drag to `/Applications`.
 DjVuLibre is bundled — no extra dependencies needed.
 
 The app is not signed with an Apple Developer certificate.
