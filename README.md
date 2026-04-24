@@ -7,11 +7,15 @@
 ## Requirements
 
 - macOS 15+
-- [DjVuLibre](https://djvu.sourceforge.net/): `brew install djvulibre`
 
 ## Install
 
 Download `MacDjVu.app.zip` from [Releases](https://github.com/danilkiff/macdjvu/releases), unzip, and move to `/Applications`.
+DjVuLibre is bundled — no extra dependencies needed.
 
 The app is not signed with an Apple Developer certificate.
 macOS will block the first launch. To allow it, run: `xattr -cr /Applications/MacDjVu.app`.
+
+## Development
+
+Building from source requires [DjVuLibre](https://djvu.sourceforge.net/): `brew install djvulibre`

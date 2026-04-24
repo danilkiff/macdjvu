@@ -19,8 +19,16 @@ jobs:
       - name: Test
         run: swift test
 
+      - name: Vendor DjVuLibre tools
+        run: bash scripts/vendor-djvulibre.sh
+
       - name: Bundle .app
         run: bash bundle.sh
+
+      - name: Verify no Homebrew paths in bundle
+        run: |
+          ! otool -L MacDjVu.app/Contents/Helpers/bin/* MacDjVu.app/Contents/Helpers/lib/* \
+            | grep /opt/homebrew
 
       - name: Create zip
         run: ditto -c -k --keepParent MacDjVu.app MacDjVu.app.zip

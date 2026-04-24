@@ -7,11 +7,20 @@ public enum DjVuRenderer {
 
     // MARK: - Tool resolution
 
-    private static let searchPaths = [
-        "/opt/homebrew/bin",   // Apple Silicon Homebrew
-        "/usr/local/bin",      // Intel Homebrew
-        "/usr/bin",
-    ]
+    private static let searchPaths: [String] = {
+        var paths: [String] = []
+        if let helpers = Bundle.main.resourceURL?
+            .deletingLastPathComponent()
+            .appendingPathComponent("Helpers/bin").path {
+            paths.append(helpers)
+        }
+        paths += [
+            "/opt/homebrew/bin",   // Apple Silicon Homebrew
+            "/usr/local/bin",      // Intel Homebrew
+            "/usr/bin",
+        ]
+        return paths
+    }()
 
     static func toolPath(_ name: String) -> String? {
         for dir in searchPaths {
@@ -275,7 +284,7 @@ public enum DjVuError: Error, LocalizedError {
         case .unexpectedOutput(let output):
             return "Unexpected output: \(output)"
         case .toolNotFound(let name):
-            return "\(name) not found. Install DjVuLibre: brew install djvulibre"
+            return "\(name) not found. The app bundle may be damaged — try reinstalling from GitHub Releases. For development: brew install djvulibre"
         }
     }
 }
