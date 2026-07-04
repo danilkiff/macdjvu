@@ -31,6 +31,8 @@ struct PageView: View {
         .task(id: RenderTaskID(fileURL: state.fileURL, page: pageNumber, scalePercent: state.scalePercent)) {
             await state.renderPageIfNeeded(pageNumber)
         }
+        .onAppear { state.pageBecameVisible(pageNumber) }
+        .onDisappear { state.pageBecameHidden(pageNumber) }
     }
 }
 

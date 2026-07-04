@@ -40,6 +40,15 @@ public final class ViewerState {
     @ObservationIgnored package var renderedPageCosts: [Int: Int] = [:]
     public var pageCount: Int = 0
     public var currentPage: Int = 1
+    /// Non-nil requests the view layer to scroll to this page, then reset it to nil.
+    /// Used only for programmatic navigation (keyboard, search); manual scrolling
+    /// updates currentPage via pageBecameVisible without touching this.
+    public var scrollTarget: Int?
+    /// Pages currently realized on screen, reported by the view layer via
+    /// pageBecameVisible/pageBecameHidden. Source of truth for currentPage and
+    /// eviction: SwiftUI's scrollPosition binding does not report manual scrolls
+    /// reliably, but onAppear/onDisappear do.
+    @ObservationIgnored package var visiblePages: Set<Int> = []
     public var scalePercent: Int = 100
     /// Cached native page sizes, keyed by 1-based page number.
     public internal(set) var pageSizes: [Int: PageSize] = [:]
@@ -81,6 +90,8 @@ public final class ViewerState {
             fileURL = url
             pageCount = count
             currentPage = 1
+            scrollTarget = nil
+            visiblePages.removeAll()
             pageSizes = [1: size]
             renderedPages.removeAll()
             renderedPageScales.removeAll()
@@ -99,9 +110,11 @@ public final class ViewerState {
 
     // MARK: - Navigation
 
+    /// Programmatic navigation: moves currentPage and asks the view to scroll there.
     public func goToPage(_ page: Int) {
         guard fileURL != nil, page >= 1, page <= pageCount else { return }
         currentPage = page
+        scrollTarget = page
     }
 
     public func nextPage() {
@@ -110,6 +123,27 @@ public final class ViewerState {
 
     public func prevPage() {
         if currentPage > 1 { goToPage(currentPage - 1) }
+    }
+
+    // MARK: - Viewport tracking
+
+    /// The view layer reports a page entering the visible region (onAppear).
+    /// Drives currentPage from the actual viewport so eviction keeps on-screen pages.
+    public func pageBecameVisible(_ page: Int) {
+        visiblePages.insert(page)
+        syncCurrentPageToViewport()
+    }
+
+    /// The view layer reports a page leaving the visible region (onDisappear).
+    public func pageBecameHidden(_ page: Int) {
+        visiblePages.remove(page)
+        syncCurrentPageToViewport()
+    }
+
+    /// currentPage follows the topmost visible page. No-op while nothing is visible
+    /// (e.g. mid-transition) so the indicator never falls back to a stale value.
+    private func syncCurrentPageToViewport() {
+        if let top = visiblePages.min() { currentPage = top }
     }
 
     // MARK: - Zoom
@@ -263,15 +297,20 @@ public final class ViewerState {
     }
 
     /// Evict rendered pages farthest from currentPage when cache exceeds capacity.
+    /// Pages currently on screen are never evicted: dropping a visible page's image
+    /// leaves it blank white, and PageView.task only re-renders on appear, not when
+    /// the cache entry vanishes underneath it.
     package func evictDistantPages() {
         guard shouldEvictRenderedPages else { return }
         let current = currentPage
-        let evictionOrder = renderedPages.keys.sorted {
-            let lhsDistance = abs($0 - current)
-            let rhsDistance = abs($1 - current)
-            if lhsDistance == rhsDistance { return $0 > $1 }
-            return lhsDistance > rhsDistance
-        }
+        let evictionOrder = renderedPages.keys
+            .filter { !visiblePages.contains($0) }
+            .sorted {
+                let lhsDistance = abs($0 - current)
+                let rhsDistance = abs($1 - current)
+                if lhsDistance == rhsDistance { return $0 > $1 }
+                return lhsDistance > rhsDistance
+            }
 
         for page in evictionOrder {
             guard shouldEvictRenderedPages, renderedPages.count > 1 else { break }

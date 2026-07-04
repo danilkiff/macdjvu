@@ -375,6 +375,59 @@ struct ViewerStateTests {
         #expect(state.renderedPageScales[1] == nil)
     }
 
+    @Test @MainActor func evictionNeverDropsVisiblePages() {
+        let state = makeState(pages: 300)
+        // Pre-fix bug: currentPage stuck at 1 while the user scrolled to pages 24-25.
+        state.currentPage = 1
+        state.visiblePages = [24, 25]
+        for i in 1...25 {
+            state.renderedPages[i] = NSImage()
+            state.renderedPageScales[i] = 100
+        }
+        state.evictDistantPages()
+        #expect(state.renderedPages.count == ViewerState.cacheCapacity)
+        // On-screen pages survive despite being far from currentPage=1.
+        #expect(state.renderedPages[24] != nil)
+        #expect(state.renderedPages[25] != nil)
+    }
+
+    /// Reproduces the reported white-page bug end to end at the state layer:
+    /// scrolling down keeps the on-screen page rendered and advances the indicator.
+    @Test @MainActor func scrollingKeepsOnScreenPageRenderedAndTracksCurrentPage() {
+        let state = makeState(pages: 300)
+        // ~2 pages visible at 100% zoom; pages leave from the top as new ones enter.
+        for top in 1...25 {
+            state.pageBecameVisible(top)
+            if top > 2 { state.pageBecameHidden(top - 2) }
+            // PageView.task renders the freshly realized page.
+            state.renderedPages[top] = NSImage()
+            state.renderedPageScales[top] = 100
+            state.renderedPageCosts[top] = 1
+            state.evictDistantPages()
+        }
+        // currentPage followed the viewport instead of staying at 1.
+        #expect(state.currentPage == 24)
+        // The page on screen still has its image (pre-fix it was evicted → white).
+        #expect(state.renderedPages[25] != nil)
+        #expect(state.renderedPages[24] != nil)
+    }
+
+    @Test @MainActor func pageBecameVisibleTracksTopmost() {
+        let state = makeState(pages: 100)
+        state.pageBecameVisible(20)
+        state.pageBecameVisible(21)
+        #expect(state.currentPage == 20)
+        state.pageBecameHidden(20)
+        #expect(state.currentPage == 21)
+    }
+
+    @Test @MainActor func goToPageRequestsScroll() {
+        let state = makeState(pages: 100)
+        state.goToPage(42)
+        #expect(state.currentPage == 42)
+        #expect(state.scrollTarget == 42)
+    }
+
     @Test @MainActor func cacheUnderCapacityNotEvicted() {
         let state = makeState(pages: 20)
         state.currentPage = 5

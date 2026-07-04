@@ -79,18 +79,24 @@ struct ContentView: View {
     // MARK: - Document view
 
     private var documentView: some View {
-        ScrollView(.vertical) {
-            LazyVStack(spacing: pageGap) {
-                ForEach(1...state.pageCount, id: \.self) { page in
-                    PageView(pageNumber: page)
+        ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+                LazyVStack(spacing: pageGap) {
+                    ForEach(1...state.pageCount, id: \.self) { page in
+                        PageView(pageNumber: page)
+                    }
                 }
+                .padding(.vertical, pageGap)
             }
-            .padding(.vertical, pageGap)
+            // Manual scrolling updates currentPage through PageView's onAppear.
+            // Programmatic jumps (keyboard, search) set scrollTarget; honor it here
+            // and clear it so it never fights the user's own scrolling.
+            .onChange(of: state.scrollTarget) { _, target in
+                guard let target else { return }
+                proxy.scrollTo(target, anchor: .top)
+                state.scrollTarget = nil
+            }
         }
-        .scrollPosition(id: Binding<Int?>(
-            get: { state.currentPage },
-            set: { if let p = $0 { state.goToPage(p) } }
-        ), anchor: .top)
     }
 
     // MARK: - Placeholder
